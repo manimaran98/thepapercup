@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:thepapercup/Validation/checkUser.dart';
+import 'package:thepapercup/Views/registrationScreen.dart';
 
 // ignore: camel_case_types
 class loginScreen extends StatefulWidget {
@@ -17,6 +19,9 @@ class _loginScreenState extends State<loginScreen> {
     super.initState();
     _setLandscapeOrientation();
   }
+
+  final formKey = GlobalKey<FormState>();
+  String? errorMessage;
 
   @override
   void dispose() {
@@ -45,6 +50,8 @@ class _loginScreenState extends State<loginScreen> {
   // Add these lines
   String _email = '';
   String _password = '';
+  //Firebase
+  final _auth = FirebaseAuth.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -154,38 +161,118 @@ class _loginScreenState extends State<loginScreen> {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      // Sets minimum size of the button
-                      minimumSize:
-                          Size(150, 50), // Width and Height respectively
-                      // Padding inside the button
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 50, vertical: 20),
-                      // The shape and look of the button
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          // Sets minimum size of the button
+                          minimumSize: const Size(
+                              150, 50), // Width and Height respectively
+                          // Padding inside the button
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 20),
+                          // The shape and look of the button
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          // Your onPressed function
+                          if (_formKey.currentState!.validate()) {
+                            _formKey.currentState!.save();
+                            // Your login logic here
+                          }
+                        },
+                        child: const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 20, // Increase font size
+                            fontWeight: FontWeight.bold, // Bold text
+                          ),
+                        ),
                       ),
-                    ),
-                    onPressed: () {
-                      // Your onPressed function
-                      if (_formKey.currentState!.validate()) {
-                        _formKey.currentState!.save();
-                        // Your login logic here
-                      }
-                    },
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(
-                        fontSize: 20, // Increase font size
-                        fontWeight: FontWeight.bold, // Bold text
+                      const SizedBox(width: 20),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          // Sets minimum size of the button
+                          minimumSize: const Size(
+                              150, 50), // Width and Height respectively
+                          // Padding inside the button
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 50, vertical: 20),
+                          // The shape and look of the button
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const registrationScreen()));
+                        },
+                        child: const Text(
+                          'Registration',
+                          style: TextStyle(
+                            fontSize: 20, // Increase font size
+                            fontWeight: FontWeight.bold, // Bold text
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
         ));
+  }
+
+  void signIn(String email, String password) async {
+    if (formKey.currentState!.validate()) {
+      try {
+        await _auth
+            .signInWithEmailAndPassword(email: email, password: password)
+            .then((uid) => {
+                  Navigator.of(context).pushReplacement(MaterialPageRoute(
+                      builder: (context) => const checkUser())),
+                });
+      } on FirebaseAuthException catch (error) {
+        switch (error.code) {
+          case "permission-denied":
+            errorMessage = "You access is denied";
+            break;
+          case "network-request-failed":
+            errorMessage = "You must have an active internet for Login.";
+            break;
+
+          case "invalid-email":
+            errorMessage = "Your email address appears to be malformed.";
+
+            break;
+          case "wrong-password":
+            errorMessage = "Your password is wrong.";
+            break;
+          case "user-not-found":
+            errorMessage = "User with this email doesn't exist.";
+            break;
+          case "user-disabled":
+            errorMessage = "User with this email has been disabled.";
+            break;
+          case "too-many-requests":
+            errorMessage = "Too many requests";
+            break;
+          case "operation-not-allowed":
+            errorMessage = "Signing in with Email and Password is not enabled.";
+            break;
+          default:
+            errorMessage = "An undefined Error happened.";
+        }
+        Fluttertoast.showToast(msg: errorMessage!);
+        print(error.code);
+      }
+    }
   }
 }
