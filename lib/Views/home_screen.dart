@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:thepapercup/modal/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -11,6 +12,49 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    FirebaseFirestore.instance
+        .collection("users")
+        .doc(user!.uid)
+        .get()
+        .then((value) {
+      loggedInUser = UserModel.fromMap(value.data());
+      fullname = "${loggedInUser.firstName}";
+      userId = "${loggedInUser.uid}";
+      setState(() {});
+    });
+    _setLandscapeOrientation();
+  }
+
+  final formKey = GlobalKey<FormState>();
+  String? errorMessage;
+
+  @override
+  void dispose() {
+    _resetOrientation();
+    super.dispose();
+  }
+
+  void _setLandscapeOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeRight,
+      DeviceOrientation.landscapeLeft,
+    ]);
+  }
+
+  void _resetOrientation() {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+      DeviceOrientation.landscapeRight,
+      DeviceOrientation.landscapeLeft,
+    ]);
+  }
+
+  final _formKey = GlobalKey<FormState>(); // Add this line
+
   User? user = FirebaseAuth.instance.currentUser;
   UserModel loggedInUser = UserModel();
 
@@ -43,21 +87,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    FirebaseFirestore.instance
-        .collection("users")
-        .doc(user!.uid)
-        .get()
-        .then((value) {
-      loggedInUser = UserModel.fromMap(value.data());
-      fullname = "${loggedInUser.firstName}";
-      userId = "${loggedInUser.uid}";
-      setState(() {});
-    });
-  }
-
-  @override
   void didChangeDependencies() {
     precacheImage(const AssetImage('assets/homebg.jpg'), context);
     super.didChangeDependencies();
@@ -65,86 +94,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bookButton = Material(
-      elevation: 5,
-      borderRadius: BorderRadius.circular(30),
-      color: Colors.white,
-      child: MaterialButton(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 15),
-        //minWidth: MediaQuery.of(context).size.width,
-        onPressed: () {
-          //Navigator.push(context,MaterialPageRoute(builder: (context) => const bookingScreen()));
-        },
-        child: const Text(
-          "Book Now",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-              fontSize: 20, color: Colors.black, fontWeight: FontWeight.bold),
+    return Scaffold(
+      backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
         ),
       ),
-    );
-
-    return Scaffold(
-      body: Container(
-          color: const Color.fromARGB(255, 238, 238, 238),
-          child: Column(children: <Widget>[
-            Container(
-              color: const Color.fromARGB(255, 35, 90, 190),
-              child: Padding(
-                padding:
-                    const EdgeInsets.only(top: 70.0, left: 20.0, bottom: 30),
-                child: Row(children: <Widget>[
-                  SizedBox(
-                      height: 120,
-                      child:
-                          Image.asset("assets/user.png", fit: BoxFit.contain)),
-                  Column(children: <Widget>[
-                    Container(
-                      padding: const EdgeInsets.only(top: 10.0, left: 30),
-                      child: const Text(
-                        "Welcome Back,",
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(26.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                SizedBox(
+                    height: 160,
+                    child: Image.asset(
+                      "assets/logo.png",
+                      fit: BoxFit.contain,
+                    )),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  // ignore: prefer_const_literals_to_create_immutables
+                  children: <Widget>[
+                    Text(
+                      'POS',
+                      style: TextStyle(
+                        color: Colors.white, // White color
+                        fontSize: 60, // Larger font size
+                        fontWeight: FontWeight.bold, // Bold font weight
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.only(top: 10, left: 30),
-                      child: Text(fullname,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          )),
-                    )
-                  ])
-                ]),
-              ),
-            ),
-            SizedBox(
-              child: Image.asset(
-                "assets\\logo.png",
-                fit: BoxFit.contain,
-              ),
-            ),
-            Column(
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.only(bottom: 30, top: 50),
-                  child: const Text(
-                    "Having Mental Break Down,\n Why not book a session ?",
-                    style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black),
-                  ),
+                  ],
                 ),
-                bookButton,
-                const SizedBox(height: 20),
               ],
             ),
-          ])),
+          ),
+        ),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         //currentIndex: 0,
         items: const <BottomNavigationBarItem>[
@@ -154,11 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month, color: Colors.black),
-            label: 'Appoinment',
+            label: 'Sales',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.check_box, color: Colors.black),
-            label: 'Health Screening',
+            label: 'Inventory',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_outlined, color: Colors.black),

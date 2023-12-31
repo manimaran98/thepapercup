@@ -47,7 +47,6 @@ class _loginScreenState extends State<loginScreen> {
 
   final _formKey = GlobalKey<FormState>(); // Add this line
 
-  // Add these lines
   String _email = '';
   String _password = '';
   //Firebase
@@ -182,6 +181,7 @@ class _loginScreenState extends State<loginScreen> {
                           if (_formKey.currentState!.validate()) {
                             _formKey.currentState!.save();
                             // Your login logic here
+                            signIn(_email, _password);
                           }
                         },
                         child: const Text(
@@ -231,7 +231,7 @@ class _loginScreenState extends State<loginScreen> {
   }
 
   void signIn(String email, String password) async {
-    if (formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate()) {
       try {
         await _auth
             .signInWithEmailAndPassword(email: email, password: password)
