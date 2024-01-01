@@ -42,20 +42,22 @@ class _checkUserState extends State<checkUser> {
 
     setState(() {
       role = snap['role'];
-      name = snap['firstName'];
+      name = snap['fullname'];
     });
 
     if (role != 'User') {
-      navigateNext(loginScreen());
+      navigateNext(const loginScreen());
       Fluttertoast.showToast(msg: "Unauthorised Access");
     } else if (role == 'User') {
-      navigateNext(HomeScreen());
+      navigateNext(HomeScreen(
+        selectedIndex: 0,
+      ));
       Fluttertoast.showToast(msg: "Welcome " + name);
     }
   }
 
   void navigateNext(Widget route) {
-    Timer(Duration(milliseconds: 500), () {
+    Timer(const Duration(milliseconds: 500), () {
       Navigator.pushReplacement(
           context, MaterialPageRoute(builder: (context) => route));
     });
@@ -65,10 +67,10 @@ class _checkUserState extends State<checkUser> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-          child: Center(
-            child: const CircularProgressIndicator(),
-          ),
-          color: Colors.white),
+          color: Colors.white,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          )),
     );
   }
 }

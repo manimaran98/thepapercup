@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:thepapercup/Views/Sales/sales.dart';
 import 'package:thepapercup/modal/user_model.dart';
 
+// ignore: must_be_immutable
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  int selectedIndex;
+  HomeScreen({super.key, required this.selectedIndex});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -15,88 +17,66 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    getdata();
+  }
+
+  void getdata() async {
     FirebaseFirestore.instance
         .collection("users")
         .doc(user!.uid)
         .get()
         .then((value) {
       loggedInUser = UserModel.fromMap(value.data());
-      fullname = "${loggedInUser.firstName}";
+      fullname = "${loggedInUser.fullName}";
       userId = "${loggedInUser.uid}";
-      setState(() {});
+      // After fetching user data, set up the widget options
+      _setupWidgetOptions();
     });
-    _setLandscapeOrientation();
   }
 
   final formKey = GlobalKey<FormState>();
   String? errorMessage;
+  // Define your screen widgets here
+  List<Widget> _widgetOptions = [];
 
-  @override
-  void dispose() {
-    _resetOrientation();
-    super.dispose();
+  void _setupWidgetOptions() {
+    setState(() {
+      // Now you can use userId to initialize _widgetOptions
+      _widgetOptions = [
+        const Text('Home Screen Placeholder'),
+        SalesScreen(userId: userId), // Pass userId to SalesScreen
+        const Text('Inventory Screen Placeholder'),
+        const Text('Catering Screen Placeholder'),
+        const Text('Account Screen Placeholder'),
+      ];
+    });
   }
 
-  void _setLandscapeOrientation() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
-  }
-
-  void _resetOrientation() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
-  }
-
-  final _formKey = GlobalKey<FormState>(); // Add this line
+  //final _formKey = GlobalKey<FormState>(); // Add this line
 
   User? user = FirebaseAuth.instance.currentUser;
   UserModel loggedInUser = UserModel();
 
-  int _selectedIndex = 0;
   String fullname = "Loading...";
   String userId = "";
-
   void _onItemTapped(int index) {
     setState(() {
-      if (index == 0) {
-        _selectedIndex = index;
-      }
-
-      if (index == 1) {
-        //Navigator.push(context,MaterialPageRoute(builder: (context) => const appoinment_booking()));
-
-        _selectedIndex = index;
-      }
-
-      if (index == 2) {
-        //Navigator.push(context,MaterialPageRoute(builder: (context) => const health_screening()));
-        _selectedIndex = index;
-      }
-
-      if (index == 3) {
-        //Navigator.push(context,MaterialPageRoute(builder: (context) => const account_screen()));
-        _selectedIndex = index;
-      }
+      widget.selectedIndex = index;
     });
   }
 
   @override
-  void didChangeDependencies() {
-    precacheImage(const AssetImage('assets/homebg.jpg'), context);
-    super.didChangeDependencies();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    // The build method checks if _widgetOptions is empty and shows a loader until data is loaded
+    if (_widgetOptions.isEmpty) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
-      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
         elevation: 0,
@@ -108,60 +88,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(26.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
-                SizedBox(
-                    height: 160,
-                    child: Image.asset(
-                      "assets/logo.png",
-                      fit: BoxFit.contain,
-                    )),
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  // ignore: prefer_const_literals_to_create_immutables
-                  children: <Widget>[
-                    Text(
-                      'POS',
-                      style: TextStyle(
-                        color: Colors.white, // White color
-                        fontSize: 60, // Larger font size
-                        fontWeight: FontWeight.bold, // Bold font weight
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+        child: _widgetOptions
+            .elementAt(widget.selectedIndex), // Display the selected screen
       ),
       bottomNavigationBar: BottomNavigationBar(
-        //currentIndex: 0,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
-            icon: Icon(Icons.home, color: Colors.black),
+            icon: Icon(Icons.home, color: Color.fromRGBO(122, 81, 204, 1)),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_month, color: Colors.black),
+            icon: Icon(Icons.business, color: Color.fromRGBO(122, 81, 204, 1)),
             label: 'Sales',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.check_box, color: Colors.black),
+            icon: Icon(Icons.check_box, color: Color.fromRGBO(122, 81, 204, 1)),
             label: 'Inventory',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined, color: Colors.black),
+            icon: Icon(Icons.account_circle_outlined,
+                color: Color.fromRGBO(122, 81, 204, 1)),
+            label: 'Caterting',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_circle_outlined,
+                color: Color.fromRGBO(122, 81, 204, 1)),
             label: 'Account',
           )
         ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.black,
+        currentIndex: widget.selectedIndex,
+        selectedItemColor: const Color.fromRGBO(122, 81, 204, 1),
         onTap: _onItemTapped,
       ),
     );

@@ -1,7 +1,7 @@
 class UserModel {
   String? uid;
   String? email;
-  String? firstName;
+  String? fullName;
   String? mobile;
   String? birthDate;
   String? gender;
@@ -10,7 +10,7 @@ class UserModel {
   UserModel({
     this.uid,
     this.email,
-    this.firstName,
+    this.fullName,
     this.mobile,
     this.birthDate,
     this.gender,
@@ -23,7 +23,7 @@ class UserModel {
     return UserModel(
       uid: map['user_id'],
       email: map['email'],
-      firstName: map['firstName'],
+      fullName: map['fullName'],
       mobile: map['mobile'],
       birthDate: map['birthDate'],
       gender: map['gender'],
@@ -36,7 +36,7 @@ class UserModel {
     return {
       'user_id': uid,
       'email': email,
-      'firstName': firstName,
+      'fullName': fullName,
       'mobile': mobile,
       'birthDate': birthDate,
       'gender': gender,

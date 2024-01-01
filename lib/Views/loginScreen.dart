@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
+
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:thepapercup/Validation/checkUser.dart';
 import 'package:thepapercup/Views/registrationScreen.dart';
@@ -17,33 +17,10 @@ class _loginScreenState extends State<loginScreen> {
   @override
   void initState() {
     super.initState();
-    _setLandscapeOrientation();
   }
 
   final formKey = GlobalKey<FormState>();
   String? errorMessage;
-
-  @override
-  void dispose() {
-    _resetOrientation();
-    super.dispose();
-  }
-
-  void _setLandscapeOrientation() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
-  }
-
-  void _resetOrientation() {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.landscapeLeft,
-    ]);
-  }
 
   final _formKey = GlobalKey<FormState>(); // Add this line
 

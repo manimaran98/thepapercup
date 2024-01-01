@@ -29,6 +29,11 @@ class _registrationScreenState extends State<registrationScreen> {
   final confirmPasswordEditingController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     //name field
     final fullNameField = TextFormField(
@@ -377,7 +382,7 @@ class _registrationScreenState extends State<registrationScreen> {
     // writing all the values
     userModel.email = user!.email;
     userModel.uid = user.uid;
-    userModel.firstName = firstNameEditingController.text;
+    userModel.fullName = firstNameEditingController.text;
     userModel.mobile = mobileEditingController.text;
     userModel.birthDate = '';
     userModel.gender = '';
@@ -392,7 +397,10 @@ class _registrationScreenState extends State<registrationScreen> {
     // ignore: use_build_context_synchronously
     Navigator.pushAndRemoveUntil(
         (context),
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(
+            builder: (context) => HomeScreen(
+                  selectedIndex: 0,
+                )),
         (route) => false);
   }
 }
