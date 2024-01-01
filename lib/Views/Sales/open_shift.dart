@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:thepapercup/Views/home_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class OpenShiftScreen extends StatefulWidget {
   final Function(double) onShiftOpened;
@@ -19,13 +20,44 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
     super.initState();
   }
 
-  void _navigateBackToSalesScreen() {
-    Navigator.pushReplacement(
+  void _navigateBackToSalesScreen(double drawerAmount) async {
+    // Add data to Firebase when opening the shift
+    final DateTime now = DateTime.now();
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+
+    try {
+      // Add the shift data to Firestore
+      await firestore.collection('shifts').add({
+        'name': 'Open Shift',
+        'isOpen': true,
+        'startTime': now,
+        'endTime': null,
+        'userId': '', // Replace with the actual user ID if needed
+        'drawerAmount': drawerAmount,
+        // Add other necessary fields
+      });
+
+      // Navigate back to the SalesScreen
+      // ignore: use_build_context_synchronously
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-            builder: (context) => HomeScreen(
-                  selectedIndex: 1,
-                ))); // Navigate back to the previous screen (SalesScreen)
+          builder: (context) => HomeScreen(
+            selectedIndex: 1,
+          ),
+        ),
+      );
+    } catch (error) {
+      Fluttertoast.showToast(
+        msg: 'Error opening shift: $error',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+    }
   }
 
   @override
@@ -35,7 +67,17 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
         title: const Text('Open Shift'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: _navigateBackToSalesScreen, // Call the navigation function
+          onPressed: () {
+            // Navigate back to the SalesScreen without opening the shift
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(
+                  selectedIndex: 1,
+                ),
+              ),
+            );
+          },
         ),
       ),
       body: Padding(
@@ -59,7 +101,10 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
                 final double? drawerAmount =
                     double.tryParse(_drawerController.text);
                 if (drawerAmount != null) {
+                  // Call the function to open the shift and pass drawerAmount
                   widget.onShiftOpened(drawerAmount);
+                  // Navigate back to SalesScreen with the new shift open
+                  _navigateBackToSalesScreen(drawerAmount);
                 } else {
                   Fluttertoast.showToast(
                     msg: 'Please Enter Valid Number',

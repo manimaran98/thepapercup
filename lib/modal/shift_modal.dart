@@ -30,8 +30,8 @@ class ShiftModel {
       startTime: map['startTime'] as String,
       endTime: map['endTime'] as String,
       date: map['date'] as String,
-      drawerAmount: map['drawerAmount'] as double,
-      sales: map['sales'] as double,
+      drawerAmount: (map['drawerAmount'] as num).toDouble(),
+      sales: (map['sales'] as num).toDouble(),
       userId: map['userId'] as String,
     );
   }
