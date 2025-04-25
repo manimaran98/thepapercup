@@ -121,10 +121,92 @@ class _SalesScreen extends State<SalesScreen> {
     }
   }
 
+  Future<void> closeShift() async {
+    try {
+      // Calculate total sales from cart
+      double totalSales = 0.0;
+      cart.forEach((key, item) {
+        if (item.price != null && item.quantity != null) {
+          totalSales += item.price! * item.quantity!;
+        }
+      });
+
+      // Get the current shift data
+      DocumentSnapshot shiftSnapshot = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc('current')
+          .get();
+
+      if (shiftSnapshot.exists) {
+        var shiftData = shiftSnapshot.data() as Map<String, dynamic>;
+        double initialDrawerAmount = shiftData['drawerAmount'] ?? 0.0;
+
+        // Update the shift document with end time and total sales
+        await FirebaseFirestore.instance
+            .collection('shifts')
+            .doc('current')
+            .update({
+          'isOpen': false,
+          'endTime': DateTime.now(),
+          'sales': totalSales,
+          'totalAmount': initialDrawerAmount + totalSales,
+        });
+
+        // Clear the cart
+        setState(() {
+          cart.clear();
+          isShiftOpen = false;
+        });
+
+        Fluttertoast.showToast(
+          msg: 'Shift closed successfully',
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.BOTTOM,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+          fontSize: 16.0,
+        );
+      }
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: 'Error closing shift: $e',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+    }
+  }
+
   void handleMenuAction(String value) {
     if (value == 'End Shift') {
-      // Implement end shift logic
-      // Calculate and show the summary of sales
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Close Shift'),
+            content: const Text('Are you sure you want to close the shift?'),
+            actions: <Widget>[
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              TextButton(
+                child: const Text('Confirm'),
+                onPressed: () async {
+                  Navigator.of(context).pop();
+                  await closeShift();
+                },
+              ),
+            ],
+          );
+        },
+      );
     }
   }
 
@@ -133,10 +215,13 @@ class _SalesScreen extends State<SalesScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => OpenShiftScreen(
-          onShiftOpened: (double drawerAmount) {
-            // Implement the logic to handle shift opening if needed
+          onShiftOpened: (double drawerAmount) async {
+            // After shift is opened, update the state
+            setState(() {
+              isShiftOpen = true;
+            });
+            await loadItemsForSale();
           },
-          // Pass any required parameters to the OpenShiftScreen
         ),
       ),
     );
@@ -148,57 +233,77 @@ class _SalesScreen extends State<SalesScreen> {
       appBar: AppBar(
         title: const Text("Sales"),
         actions: <Widget>[
-          PopupMenuButton<String>(
-            onSelected: handleMenuAction,
-            itemBuilder: (BuildContext context) {
-              return {'End Shift'}.map((String choice) {
-                return PopupMenuItem<String>(
-                  value: choice,
-                  child: Text(choice),
-                );
-              }).toList();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (!isShiftOpen) // Display "Open Shift" button if shift is closed
-            ElevatedButton(
-              onPressed: handleOpenShift,
-              child: const Text('Open Shift'),
-            ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: itemsForSale.length,
-              itemBuilder: (context, index) {
-                final item = itemsForSale[index];
-                return ListTile(
-                  title: Text((item.name).toString()),
-                  subtitle:
-                      Text('Price: ${item.price?.toStringAsFixed(2) ?? "N/A"}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () {
-                      if (item.price != null) {
-                        addToCart(item);
-                      }
-                    },
-                  ),
-                );
+          if (isShiftOpen) // Only show the End Shift option when shift is open
+            PopupMenuButton<String>(
+              onSelected: handleMenuAction,
+              itemBuilder: (BuildContext context) {
+                return {'End Shift'}.map((String choice) {
+                  return PopupMenuItem<String>(
+                    value: choice,
+                    child: Text(choice),
+                  );
+                }).toList();
               },
             ),
-          ),
         ],
       ),
-
-      // Add a floating action button for checkout
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Implement checkout logic here
-        },
-        child: const Icon(Icons.shopping_cart),
+      body: Center(
+        child: isShiftOpen
+            ? Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: itemsForSale.length,
+                      itemBuilder: (context, index) {
+                        final item = itemsForSale[index];
+                        return ListTile(
+                          title: Text((item.name).toString()),
+                          subtitle: Text(
+                              'Price: ${item.price?.toStringAsFixed(2) ?? "N/A"}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: () {
+                              if (item.price != null) {
+                                addToCart(item);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Shift is currently closed',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: handleOpenShift,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
+                    ),
+                    child: const Text(
+                      'Open Shift',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
       ),
+      floatingActionButton: isShiftOpen
+          ? FloatingActionButton(
+              onPressed: () {
+                // Implement checkout logic here
+              },
+              child: const Icon(Icons.shopping_cart),
+            )
+          : null,
     );
   }
 }

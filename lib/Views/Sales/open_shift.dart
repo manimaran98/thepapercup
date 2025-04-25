@@ -26,27 +26,21 @@ class _OpenShiftScreenState extends State<OpenShiftScreen> {
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
     try {
-      // Add the shift data to Firestore
-      await firestore.collection('shifts').add({
+      // Update the current shift document
+      await firestore.collection('shifts').doc('current').set({
         'name': 'Open Shift',
         'isOpen': true,
         'startTime': now,
         'endTime': null,
         'userId': '', // Replace with the actual user ID if needed
         'drawerAmount': drawerAmount,
+        'sales': 0.00,
         // Add other necessary fields
       });
 
       // Navigate back to the SalesScreen
       // ignore: use_build_context_synchronously
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(
-            selectedIndex: 1,
-          ),
-        ),
-      );
+      Navigator.pop(context);
     } catch (error) {
       Fluttertoast.showToast(
         msg: 'Error opening shift: $error',

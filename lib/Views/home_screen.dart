@@ -108,11 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.account_circle_outlined,
                 color: Color.fromRGBO(122, 81, 204, 1)),
-            label: 'Caterting',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle_outlined,
-                color: Color.fromRGBO(122, 81, 204, 1)),
             label: 'Account',
           )
         ],
