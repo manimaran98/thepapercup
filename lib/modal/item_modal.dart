@@ -4,6 +4,7 @@ class ItemModel {
   double? price;
   int? quantity;
   String? category;
+  String? imageUrl;
 
   ItemModel({
     this.id,
@@ -11,6 +12,7 @@ class ItemModel {
     this.price,
     this.quantity,
     this.category,
+    this.imageUrl,
   });
 
   // Add a method to convert your item to a map if you're using Firestore or similar.
@@ -21,6 +23,7 @@ class ItemModel {
       price: map['price']?.toDouble(),
       quantity: map['quantity'],
       category: map['category'],
+      imageUrl: map['imageUrl'],
     );
   }
 
@@ -32,6 +35,7 @@ class ItemModel {
       'price': price,
       'quantity': quantity,
       'category': category,
+      'imageUrl': imageUrl,
     };
   }
 }

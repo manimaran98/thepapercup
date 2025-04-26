@@ -5,83 +5,77 @@ import 'package:thepapercup/modal/item_modal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:thepapercup/modal/shift_modal.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class SalesScreen extends StatefulWidget {
-  final String userId; // Add userId as a parameter
+  final String userId;
   const SalesScreen({super.key, required this.userId});
 
   @override
   _SalesScreen createState() => _SalesScreen();
 }
 
-class _SalesScreen extends State<SalesScreen> {
+class _SalesScreen extends State<SalesScreen>
+    with AutomaticKeepAliveClientMixin {
   List<ItemModel> itemsForSale = [];
   Map<String, ItemModel> cart = {};
   bool isShiftOpen = false;
+  bool _isLoading = true;
+  bool _isInitialized = false;
   DateTime now = DateTime.now();
   DateFormat dateFormat = DateFormat('dd-MM-yyyy');
   DateFormat timeFormat = DateFormat('HH:mm');
+  bool _isFirstLoad = true;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    checkShiftStatus();
-    createSampleItems();
+    // Load both shift status and items in parallel
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      // Load both shift status and items in parallel
+      await Future.wait([
+        checkShiftStatus(),
+        loadItemsForSale(),
+      ]);
+    } catch (e) {
+      print('Error initializing data: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isFirstLoad = false;
+        });
+      }
+    }
   }
 
   Future<void> checkShiftStatus() async {
     try {
-      DocumentSnapshot shiftSnapshot = await FirebaseFirestore.instance
+      DocumentSnapshot currentShiftDoc = await FirebaseFirestore.instance
           .collection('shifts')
           .doc('current')
           .get();
 
-      if (shiftSnapshot.exists && shiftSnapshot.data() != null) {
-        var shiftData = shiftSnapshot.data() as Map<String, dynamic>;
+      if (!mounted) return;
+
+      if (currentShiftDoc.exists && currentShiftDoc.data() != null) {
+        var currentData = currentShiftDoc.data() as Map<String, dynamic>;
         setState(() {
-          isShiftOpen = shiftData['isOpen'] ?? false;
+          isShiftOpen = currentData['isOpen'] ?? false;
         });
-        if (isShiftOpen) {
-          await loadItemsForSale();
-        }
       } else {
-        // Shift does not exist, so create a closed shift
         await createClosedShift();
-        // Handle case for no shift data
       }
     } catch (e) {
-      // Show a toast message for the error
-      Fluttertoast.showToast(
-        msg: 'Error checking shift status: $e',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
+      print('Error checking shift status: $e');
     }
-  }
-
-  Future<void> createClosedShift() async {
-    // Create a closed shift in the database
-    final DateTime now = DateTime.now();
-    final ShiftModel closedShift = ShiftModel(
-      id: 'current',
-      name: 'Closed Shift',
-      isOpen: false,
-      startTime: timeFormat.format(now),
-      endTime: timeFormat.format(now),
-      userId: widget.userId,
-      date: dateFormat.format(now),
-      drawerAmount: 0.00,
-      sales: 0.00, // Use the userId passed as a parameter
-    );
-
-    await FirebaseFirestore.instance
-        .collection('shifts')
-        .doc('current')
-        .set(closedShift.toMap());
   }
 
   Future<void> loadItemsForSale() async {
@@ -89,107 +83,342 @@ class _SalesScreen extends State<SalesScreen> {
       QuerySnapshot itemsSnapshot =
           await FirebaseFirestore.instance.collection('itemsForSale').get();
 
+      if (!mounted) return;
+
       List<ItemModel> loadedItems = itemsSnapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        // If the document doesn't have an ID field, use the document ID
         if (!data.containsKey('id')) {
-          // Update the document with its ID if it's missing
           doc.reference.update({'id': doc.id});
         }
-        data['id'] = doc.id; // Always use the document ID
+        data['id'] = doc.id;
         return ItemModel.fromMap(data);
       }).toList();
 
-      if (mounted) {
-        setState(() {
-          itemsForSale = loadedItems;
-        });
-      }
+      setState(() {
+        itemsForSale = loadedItems;
+      });
     } catch (e) {
-      if (mounted) {
-        Fluttertoast.showToast(
-          msg: 'Error loading items: $e',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.red,
-          textColor: Colors.white,
-        );
-      }
+      print('Error loading items: $e');
     }
   }
 
-  Future<void> createSampleItems() async {
-    try {
-      // Check if items already exist
-      QuerySnapshot itemsSnapshot =
-          await FirebaseFirestore.instance.collection('itemsForSale').get();
+  Future<void> createClosedShift() async {
+    final DateTime now = DateTime.now();
+    final DateFormat dateFormatter = DateFormat('ddMMyyyy');
+    final DateFormat timeFormatter = DateFormat('HH:mm');
+    final String shiftId =
+        '${dateFormatter.format(now)}_${timeFormatter.format(now)}';
 
-      if (itemsSnapshot.docs.isEmpty) {
-        // Create sample items
-        List<Map<String, dynamic>> sampleItems = [
-          {
-            'name': 'Coffee',
-            'price': 2.50,
-            'category': 'Beverages',
-            'quantity': 0,
-          },
-          {
-            'name': 'Tea',
-            'price': 2.00,
-            'category': 'Beverages',
-            'quantity': 0,
-          },
-          {
-            'name': 'Cake',
-            'price': 3.50,
-            'category': 'Food',
-            'quantity': 0,
-          },
-          {
-            'name': 'Sandwich',
-            'price': 4.00,
-            'category': 'Food',
-            'quantity': 0,
-          },
-          {
-            'name': 'Water',
-            'price': 1.00,
-            'category': 'Beverages',
-            'quantity': 0,
-          },
-          {
-            'name': 'Cookie',
-            'price': 1.50,
-            'category': 'Food',
-            'quantity': 0,
-          },
-        ];
+    // Create a closed shift document
+    await FirebaseFirestore.instance.collection('shifts').doc(shiftId).set({
+      'isOpen': false,
+      'startTime': timeFormatter.format(now),
+      'date': dateFormatter.format(now),
+      'endTime': timeFormatter.format(now),
+      'userId': widget.userId,
+      'drawerAmount': 0.00,
+      'sales': 0.00,
+      'endDrawerAmount': 0.00,
+      'expectedDrawerAmount': 0.00,
+    });
 
-        // Add items to Firestore with their IDs
-        for (var item in sampleItems) {
-          DocumentReference docRef = await FirebaseFirestore.instance
-              .collection('itemsForSale')
-              .add(item);
+    // Update current reference
+    await FirebaseFirestore.instance.collection('shifts').doc('current').set({
+      'currentShiftId': shiftId,
+      'isOpen': false,
+      'drawerAmount': 0.00,
+    });
 
-          // Update the document with its ID
-          await docRef.update({'id': docRef.id});
-        }
+    if (mounted) {
+      setState(() {
+        isShiftOpen = false;
+      });
+    }
+  }
 
-        // Reload items after adding
-        await loadItemsForSale();
-      } else {
-        // If items exist, just load them
-        await loadItemsForSale();
-      }
-    } catch (e) {
-      Fluttertoast.showToast(
-        msg: 'Error creating sample items: $e',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
+  void handleOpenShift() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => OpenShiftScreen(
+          onShiftOpened: (double drawerAmount) async {
+            setState(() {
+              isShiftOpen = true;
+            });
+          },
+          userId: widget.userId,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_isFirstLoad) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor:
+                AlwaysStoppedAnimation<Color>(Color.fromRGBO(122, 81, 204, 1)),
+          ),
+        ),
       );
     }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Sales"),
+        actions: <Widget>[
+          if (isShiftOpen)
+            PopupMenuButton<String>(
+              onSelected: handleMenuAction,
+              itemBuilder: (BuildContext context) {
+                return {'End Shift'}.map((String choice) {
+                  return PopupMenuItem<String>(
+                    value: choice,
+                    child: Text(choice),
+                  );
+                }).toList();
+              },
+            ),
+        ],
+      ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: isShiftOpen
+            ? Row(
+                key: const ValueKey('sales_view'),
+                children: [
+                  // Left side - Items Grid (70% width)
+                  Expanded(
+                    flex: 7,
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        childAspectRatio: 0.8,
+                        crossAxisSpacing: 8.0,
+                        mainAxisSpacing: 8.0,
+                      ),
+                      itemCount: itemsForSale.length,
+                      itemBuilder: (context, index) =>
+                          _buildGridItem(itemsForSale[index]),
+                    ),
+                  ),
+                  // Right side - Cart (30% width)
+                  Container(
+                    width: MediaQuery.of(context).size.width * 0.3,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      border: Border(
+                        left: BorderSide(
+                          color: Colors.grey[300]!,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Cart Header
+                        Container(
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.2),
+                                spreadRadius: 1,
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Current Order',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${cart.length} items',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Cart Items
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(8.0),
+                            itemCount: cart.length,
+                            itemBuilder: (context, index) {
+                              final item = cart.values.elementAt(index);
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8.0),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Row(
+                                    children: [
+                                      // Item Details
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.name ?? '',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Text(
+                                              '\$${item.price?.toStringAsFixed(2) ?? "0.00"}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Quantity Controls
+                                      Row(
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.remove_circle_outline),
+                                            iconSize: 20,
+                                            onPressed: () =>
+                                                removeFromCart(item),
+                                          ),
+                                          Text(
+                                            '${item.quantity}',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                                Icons.add_circle_outline),
+                                            iconSize: 20,
+                                            onPressed: () => addToCart(item),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        // Cart Footer with Total and Checkout
+                        Container(
+                          padding: const EdgeInsets.all(16.0),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.2),
+                                spreadRadius: 1,
+                                blurRadius: 2,
+                                offset: const Offset(0, -1),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Sub Total',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${calculateTotal().toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton(
+                                  onPressed:
+                                      cart.isEmpty ? null : showCheckoutDialog,
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    backgroundColor: Colors.blue,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text(
+                                    'Proceed to Checkout',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Center(
+                key: const ValueKey('closed_view'),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Shift is currently closed',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: handleOpenShift,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16),
+                      ),
+                      child: const Text(
+                        'Open Shift',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+    );
   }
 
   void addToCart(ItemModel item) {
@@ -279,6 +508,15 @@ class _SalesScreen extends State<SalesScreen> {
       final DateTime now = DateTime.now();
       final String saleId = DateTime.now().millisecondsSinceEpoch.toString();
 
+      // Get current shift ID
+      DocumentSnapshot currentDoc = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc('current')
+          .get();
+
+      String currentShiftId =
+          (currentDoc.data() as Map<String, dynamic>)['currentShiftId'];
+
       // Create sale items list
       List<Map<String, dynamic>> saleItems = cart.values
           .map((item) => {
@@ -290,25 +528,21 @@ class _SalesScreen extends State<SalesScreen> {
               })
           .toList();
 
-      // Calculate totals
-      double subtotal = calculateTotal();
-      double tax = subtotal * 0.1; // 10% tax
-      double total = subtotal + tax;
+      // Calculate total
+      double total = calculateTotal();
 
       // Create sale document
       await FirebaseFirestore.instance.collection('sales').doc(saleId).set({
         'saleId': saleId,
         'date': now,
         'items': saleItems,
-        'subtotal': subtotal,
-        'tax': tax,
         'total': total,
-        'shiftId': 'current', // Link to current shift
+        'shiftId': currentShiftId,
       });
 
       // Update current shift sales total
       DocumentReference shiftRef =
-          FirebaseFirestore.instance.collection('shifts').doc('current');
+          FirebaseFirestore.instance.collection('shifts').doc(currentShiftId);
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         DocumentSnapshot shiftDoc = await transaction.get(shiftRef);
         if (shiftDoc.exists) {
@@ -325,7 +559,6 @@ class _SalesScreen extends State<SalesScreen> {
         cart.clear();
       });
 
-      // Show success message
       Fluttertoast.showToast(
         msg: 'Sale completed successfully',
         toastLength: Toast.LENGTH_LONG,
@@ -334,7 +567,6 @@ class _SalesScreen extends State<SalesScreen> {
         textColor: Colors.white,
       );
     } catch (e) {
-      // Show error message
       Fluttertoast.showToast(
         msg: 'Error processing sale: $e',
         toastLength: Toast.LENGTH_LONG,
@@ -354,7 +586,6 @@ class _SalesScreen extends State<SalesScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Order summary
               const Text(
                 'Order Summary',
                 style: TextStyle(
@@ -376,23 +607,6 @@ class _SalesScreen extends State<SalesScreen> {
                     ),
                   )),
               const Divider(),
-              // Subtotal
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Subtotal:'),
-                  Text('\$${calculateTotal().toStringAsFixed(2)}'),
-                ],
-              ),
-              // Tax
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Tax (10%):'),
-                  Text('\$${(calculateTotal() * 0.1).toStringAsFixed(2)}'),
-                ],
-              ),
-              const Divider(),
               // Total
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -402,7 +616,7 @@ class _SalesScreen extends State<SalesScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    '\$${(calculateTotal() * 1.1).toStringAsFixed(2)}',
+                    '\$${calculateTotal().toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -429,291 +643,6 @@ class _SalesScreen extends State<SalesScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Sales"),
-        actions: <Widget>[
-          if (isShiftOpen)
-            PopupMenuButton<String>(
-              onSelected: handleMenuAction,
-              itemBuilder: (BuildContext context) {
-                return {'End Shift'}.map((String choice) {
-                  return PopupMenuItem<String>(
-                    value: choice,
-                    child: Text(choice),
-                  );
-                }).toList();
-              },
-            ),
-        ],
-      ),
-      body: isShiftOpen
-          ? Row(
-              children: [
-                // Left side - Items Grid (70% width)
-                Expanded(
-                  flex: 7,
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(8.0),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 1.2,
-                      crossAxisSpacing: 8.0,
-                      mainAxisSpacing: 8.0,
-                    ),
-                    itemCount: itemsForSale.length,
-                    itemBuilder: (context, index) {
-                      final item = itemsForSale[index];
-                      return Card(
-                        elevation: 2,
-                        color: Colors.white,
-                        child: InkWell(
-                          onTap: () => addToCart(item),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  height: 2,
-                                  color: Colors.red[200],
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 4),
-                                ),
-                                Text(
-                                  item.name ?? '',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                                Container(
-                                  height: 2,
-                                  color: Colors.red[200],
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 4),
-                                ),
-                                Text(
-                                  '\$${item.price?.toStringAsFixed(2) ?? "0.00"}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.green[700],
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                // Right side - Cart (30% width)
-                Container(
-                  width: MediaQuery.of(context).size.width * 0.3,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    border: Border(
-                      left: BorderSide(
-                        color: Colors.grey[300]!,
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Cart Header
-                      Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
-                              spreadRadius: 1,
-                              blurRadius: 2,
-                              offset: const Offset(0, 1),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Current Order',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${cart.length} items',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Cart Items
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(8.0),
-                          itemCount: cart.length,
-                          itemBuilder: (context, index) {
-                            final item = cart.values.elementAt(index);
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8.0),
-                              child: Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Row(
-                                  children: [
-                                    // Item Details
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.name ?? '',
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          Text(
-                                            '\$${item.price?.toStringAsFixed(2) ?? "0.00"}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    // Quantity Controls
-                                    Row(
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                              Icons.remove_circle_outline),
-                                          iconSize: 20,
-                                          onPressed: () => removeFromCart(item),
-                                        ),
-                                        Text(
-                                          '${item.quantity}',
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                              Icons.add_circle_outline),
-                                          iconSize: 20,
-                                          onPressed: () => addToCart(item),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      // Cart Footer with Total and Checkout
-                      Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.2),
-                              spreadRadius: 1,
-                              blurRadius: 2,
-                              offset: const Offset(0, -1),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Sub Total',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  '\$${calculateTotal().toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed:
-                                    cart.isEmpty ? null : showCheckoutDialog,
-                                style: ElevatedButton.styleFrom(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 16),
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text(
-                                  'Proceed to Checkout',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            )
-          : const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Shift is currently closed',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: null, // Will be set in state
-                    child: Text(
-                      'Open Shift',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
   double calculateTotal() {
     double total = 0.0;
     cart.forEach((key, item) {
@@ -726,79 +655,206 @@ class _SalesScreen extends State<SalesScreen> {
 
   void handleMenuAction(String value) {
     if (value == 'End Shift') {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Close Shift'),
-            content: const Text('Are you sure you want to close the shift?'),
-            actions: <Widget>[
-              TextButton(
-                child: const Text('Cancel'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-              TextButton(
-                child: const Text('Confirm'),
-                onPressed: () async {
-                  Navigator.of(context).pop();
-                  await closeShift();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      _showEndShiftDialog();
     }
   }
 
-  void handleOpenShift() {
-    // Navigate to the OpenShiftScreen
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => OpenShiftScreen(
-          onShiftOpened: (double drawerAmount) async {
-            // After shift is opened, update the state
-            setState(() {
-              isShiftOpen = true;
-            });
-            await loadItemsForSale();
+  void _showEndShiftDialog() {
+    final TextEditingController drawerController = TextEditingController();
+    double expectedAmount = 0.0;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Close Shift'),
+              content: FutureBuilder<DocumentSnapshot>(
+                future: FirebaseFirestore.instance
+                    .collection('shifts')
+                    .doc('current')
+                    .get()
+                    .then((currentDoc) async {
+                  String currentShiftId = (currentDoc.data()
+                      as Map<String, dynamic>)['currentShiftId'];
+                  return FirebaseFirestore.instance
+                      .collection('shifts')
+                      .doc(currentShiftId)
+                      .get();
+                }),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  if (snapshot.hasData) {
+                    var data = snapshot.data!.data() as Map<String, dynamic>;
+                    double initialDrawer = data['drawerAmount'] ?? 0.0;
+                    double sales = data['sales'] ?? 0.0;
+                    expectedAmount = initialDrawer + sales;
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                            'Initial Drawer Amount: \$${initialDrawer.toStringAsFixed(2)}'),
+                        Text('Total Sales: \$${sales.toStringAsFixed(2)}'),
+                        Text(
+                            'Expected Drawer Amount: \$${expectedAmount.toStringAsFixed(2)}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: drawerController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Current Drawer Amount',
+                            hintText: 'Enter the current amount in drawer',
+                            prefixIcon: Icon(Icons.attach_money),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return const Text('Error loading shift data');
+                },
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Close Shift'),
+                  onPressed: () {
+                    if (drawerController.text.isEmpty) {
+                      Fluttertoast.showToast(
+                        msg: 'Please enter the current drawer amount',
+                        backgroundColor: Colors.red,
+                      );
+                      return;
+                    }
+
+                    try {
+                      double currentAmount =
+                          double.parse(drawerController.text);
+                      if (currentAmount < expectedAmount) {
+                        _showDrawerDiscrepancyDialog(
+                            currentAmount, expectedAmount, () {
+                          Navigator.of(context).pop();
+                          closeShift(currentAmount);
+                        });
+                      } else {
+                        Navigator.of(context).pop();
+                        closeShift(currentAmount);
+                      }
+                    } catch (e) {
+                      Fluttertoast.showToast(
+                        msg: 'Please enter a valid amount',
+                        backgroundColor: Colors.red,
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
           },
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Future<void> closeShift() async {
+  void _showDrawerDiscrepancyDialog(
+      double currentAmount, double expectedAmount, Function onConfirm) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Warning: Drawer Discrepancy'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('The drawer amount is less than expected:'),
+              const SizedBox(height: 10),
+              Text('Expected: \$${expectedAmount.toStringAsFixed(2)}'),
+              Text('Current: \$${currentAmount.toStringAsFixed(2)}'),
+              Text(
+                  'Difference: \$${(expectedAmount - currentAmount).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              const Text('Are you sure you want to close the shift?'),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Confirm'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                onConfirm();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> closeShift(double endDrawerAmount) async {
     try {
-      // Calculate total sales from cart
-      double totalSales = 0.0;
-      cart.forEach((key, item) {
-        if (item.price != null && item.quantity != null) {
-          totalSales += item.price! * item.quantity!;
-        }
+      setState(() {
+        _isLoading = true;
       });
 
-      // Get the current shift data
-      DocumentSnapshot shiftSnapshot = await FirebaseFirestore.instance
+      // Get current shift ID
+      DocumentSnapshot currentDoc = await FirebaseFirestore.instance
           .collection('shifts')
           .doc('current')
+          .get();
+
+      String currentShiftId =
+          (currentDoc.data() as Map<String, dynamic>)['currentShiftId'];
+
+      // Get shift data
+      DocumentSnapshot shiftSnapshot = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc(currentShiftId)
           .get();
 
       if (shiftSnapshot.exists) {
         var shiftData = shiftSnapshot.data() as Map<String, dynamic>;
         double initialDrawerAmount = shiftData['drawerAmount'] ?? 0.0;
+        double sales = shiftData['sales'] ?? 0.0;
+        double expectedAmount = initialDrawerAmount + sales;
 
-        // Update the shift document with end time and total sales
+        // Update the shift document with end time and final amounts
+        await FirebaseFirestore.instance
+            .collection('shifts')
+            .doc(currentShiftId)
+            .update({
+          'isOpen': false,
+          'endTime': DateFormat('HH:mm').format(DateTime.now()),
+          'endDrawerAmount': endDrawerAmount,
+          'expectedDrawerAmount': expectedAmount,
+          'discrepancy': endDrawerAmount - expectedAmount,
+        });
+
+        // Update current reference
         await FirebaseFirestore.instance
             .collection('shifts')
             .doc('current')
             .update({
           'isOpen': false,
-          'endTime': DateTime.now(),
-          'sales': totalSales,
-          'totalAmount': initialDrawerAmount + totalSales,
         });
 
         // Clear the cart
@@ -811,10 +867,8 @@ class _SalesScreen extends State<SalesScreen> {
           msg: 'Shift closed successfully',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
-          timeInSecForIosWeb: 1,
           backgroundColor: Colors.green,
           textColor: Colors.white,
-          fontSize: 16.0,
         );
       }
     } catch (e) {
@@ -822,11 +876,79 @@ class _SalesScreen extends State<SalesScreen> {
         msg: 'Error closing shift: $e',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
-        timeInSecForIosWeb: 1,
         backgroundColor: Colors.red,
         textColor: Colors.white,
-        fontSize: 16.0,
       );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
+  }
+
+  Widget _buildGridItem(ItemModel item) {
+    return Card(
+      elevation: 2,
+      color: Colors.white,
+      child: InkWell(
+        onTap: () => addToCart(item),
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                Expanded(
+                  flex: 3,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      item.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.image_not_supported);
+                      },
+                    ),
+                  ),
+                ),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      height: 2,
+                      color: Colors.red[200],
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                    ),
+                    Text(
+                      item.name ?? '',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    Container(
+                      height: 2,
+                      color: Colors.red[200],
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                    ),
+                    Text(
+                      '\$${item.price?.toStringAsFixed(2) ?? "0.00"}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
