@@ -3,21 +3,24 @@ class ItemModel {
   String? name;
   double? price;
   int? quantity;
+  String? category;
 
   ItemModel({
-    required this.id,
-    required this.name,
-    required this.price,
-    this.quantity = 0,
+    this.id,
+    this.name,
+    this.price,
+    this.quantity,
+    this.category,
   });
 
   // Add a method to convert your item to a map if you're using Firestore or similar.
-  factory ItemModel.fromMap(map) {
+  factory ItemModel.fromMap(Map<String, dynamic> map) {
     return ItemModel(
       id: map['id'],
       name: map['name'],
-      price: map['price'],
+      price: map['price']?.toDouble(),
       quantity: map['quantity'],
+      category: map['category'],
     );
   }
 
@@ -28,6 +31,7 @@ class ItemModel {
       'name': name,
       'price': price,
       'quantity': quantity,
+      'category': category,
     };
   }
 }
