@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:thepapercup/services/auth_service.dart';
+import 'package:thepapercup/Views/Login/registrationScreen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,45 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
         msg: 'An error occurred: $e',
         backgroundColor: Colors.red,
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
 
-  Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      print(
-          'Attempting registration with email: ${_emailController.text.trim()}');
-
-      final userCredential = await _authService.registerWithEmailAndPassword(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-
-      if (userCredential != null) {
-        print('Registration successful. User: ${userCredential.user?.uid}');
-        Fluttertoast.showToast(
-          msg: 'Registration successful!',
-          backgroundColor: Colors.green,
-        );
-      }
-    } catch (e) {
-      print('General Error during registration: $e');
-      Fluttertoast.showToast(
-        msg: 'An error occurred: $e',
-        backgroundColor: Colors.red,
-      );
-    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -142,14 +105,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'Email',
-                    labelStyle:
-                        TextStyle(color: Colors.white), // Make label white
+                    labelStyle: TextStyle(color: Colors.white),
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email,
-                        color: Colors.white), // Make icon white
+                    prefixIcon: Icon(Icons.email, color: Colors.white),
                   ),
-                  style: const TextStyle(
-                      color: Colors.white), // Make input text white
+                  style: const TextStyle(color: Colors.white),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
@@ -166,14 +126,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Password',
-                    labelStyle:
-                        TextStyle(color: Colors.white), // Make label white
+                    labelStyle: TextStyle(color: Colors.white),
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock,
-                        color: Colors.white), // Make icon white
+                    prefixIcon: Icon(Icons.lock, color: Colors.white),
                   ),
-                  style: const TextStyle(
-                      color: Colors.white), // Make input text white
+                  style: const TextStyle(color: Colors.white),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
@@ -184,10 +141,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-
-                const SizedBox(
-                    height: 16), // Add some spacing between fields (optional)
-
                 const SizedBox(height: 24),
                 // Login Button
                 Row(
@@ -212,14 +165,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: SizedBox(
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _register,
-                          child: _isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white)
-                              : const Text(
-                                  'Registration',
-                                  style: TextStyle(fontSize: 18),
-                                ),
+                          onPressed: _isLoading
+                              ? null
+                              : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const RegistrationScreen(),
+                                    ),
+                                  );
+                                },
+                          child: const Text(
+                            'Register',
+                            style: TextStyle(fontSize: 18),
+                          ),
                         ),
                       ),
                     ),

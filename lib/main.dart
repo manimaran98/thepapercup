@@ -40,6 +40,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'The Paper Cup',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
@@ -52,6 +53,7 @@ class MyApp extends StatelessWidget {
           }
 
           if (snapshot.hasData) {
+            // Start with dashboard (index 0)
             return const HomeScreen(selectedIndex: 0);
           }
 
@@ -60,7 +62,8 @@ class MyApp extends StatelessWidget {
       ),
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/home': (context) => const HomeScreen(selectedIndex: 0),
+        '/home': (context) =>
+            const HomeScreen(selectedIndex: 0), // Start with dashboard
       },
     );
   }

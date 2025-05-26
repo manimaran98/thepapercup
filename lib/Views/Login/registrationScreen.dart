@@ -4,403 +4,307 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:thepapercup/Views/home_screen.dart';
 import 'package:thepapercup/modal/user_model.dart';
+import 'package:intl/intl.dart';
 
-class registrationScreen extends StatefulWidget {
-  const registrationScreen({super.key});
+class RegistrationScreen extends StatefulWidget {
+  const RegistrationScreen({super.key});
 
   @override
-  State<registrationScreen> createState() => _registrationScreenState();
+  State<RegistrationScreen> createState() => _RegistrationScreenState();
 }
 
-class _registrationScreenState extends State<registrationScreen> {
+class _RegistrationScreenState extends State<RegistrationScreen> {
   final auth = FirebaseAuth.instance;
-
-  // string for displaying the error Message
-  String? errorMessage;
-
-  // form key
   final formKey = GlobalKey<FormState>();
+  bool isLoading = false;
 
-  //editingController
-  final firstNameEditingController = TextEditingController();
-  final mobileEditingController = TextEditingController();
-  final emailEditingController = TextEditingController();
-  final passwordEditingController = TextEditingController();
-  final confirmPasswordEditingController = TextEditingController();
+  // Controllers
+  final nameController = TextEditingController();
+  final mobileController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+  final birthDateController = TextEditingController();
+  final genderController = TextEditingController();
+  DateTime? selectedDate;
 
   @override
-  void initState() {
-    super.initState();
+  void dispose() {
+    nameController.dispose();
+    mobileController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    birthDateController.dispose();
+    genderController.dispose();
+    super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    //name field
-    final fullNameField = TextFormField(
-      autofocus: false,
-      controller: firstNameEditingController,
-      keyboardType: TextInputType.text,
-      validator: (value) {
-        RegExp regex = RegExp(r'^.{3,}$');
-        if (value!.isEmpty) {
-          return ("First Name is Required for Registration");
-        }
+  Future<void> register() async {
+    if (!formKey.currentState!.validate()) return;
 
-        if (!regex.hasMatch(value)) {
-          return ("Please Enter Valid Name Min. 3 Characters");
-        }
-      },
-      onSaved: (value) {
-        firstNameEditingController.text = value!;
-      },
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.account_box_outlined,
-            color: Colors.white), // Icon color
-        contentPadding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        hintText: 'First Name',
-        hintStyle: const TextStyle(color: Colors.white), // Hint text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is enabled
-          borderRadius: BorderRadius.circular(10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is focused
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      style: const TextStyle(color: Colors.white), // Input text color
-    );
+    setState(() => isLoading = true);
 
-    //Mobile field
-    final mobileField = TextFormField(
-      autofocus: false,
-      controller: mobileEditingController,
-      keyboardType: TextInputType.text,
-      validator: (value) {
-        // ignore: valid_regexps
-        RegExp regex = RegExp('^.{10,}');
-        if (value!.isEmpty) {
-          return ("Mobile is Required for Registration");
-        }
+    try {
+      // Create user in Firebase Auth
+      final userCredential = await auth.createUserWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+      );
 
-        if (!regex.hasMatch(value)) {
-          return ("Please Enter Valid Mobile Number");
-        }
+      // Create user document in Firestore
+      final newUser = UserModel(
+        uid: userCredential.user!.uid,
+        email: emailController.text.trim(),
+        fullName: nameController.text,
+        mobile: mobileController.text,
+        birthDate: birthDateController.text,
+        gender: genderController.text,
+        role: 'User', // Default role for new registrations
+      );
 
-        return null;
-      },
-      onSaved: (value) {
-        mobileEditingController.text = value!;
-      },
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.account_box_outlined,
-            color: Colors.white), // Icon color
-        contentPadding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        hintText: 'Mobile Number',
-        hintStyle: const TextStyle(color: Colors.white), // Hint text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is enabled
-          borderRadius: BorderRadius.circular(10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is focused
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      style: const TextStyle(color: Colors.white), // Input text color
-    );
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set(newUser.toMap());
 
-    //email field
-    final emailField = TextFormField(
-      autofocus: false,
-      controller: emailEditingController,
-      keyboardType: TextInputType.emailAddress,
-      validator: (value) {
-        if (value!.isEmpty) {
-          return ("Please Enter Your Email Address");
-        }
-
-        if (!RegExp("^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+.[a-z]").hasMatch(value)) {
-          return ("Please Enter a valid Email");
-        }
-
-        return null;
-      },
-      onSaved: (value) {
-        emailEditingController.text = value!;
-      },
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.mail, color: Colors.white), // Icon color
-        contentPadding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        hintText: 'Email',
-        hintStyle: const TextStyle(color: Colors.white), // Hint text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is enabled
-          borderRadius: BorderRadius.circular(10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is focused
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      style: const TextStyle(color: Colors.white), // Input text color
-    );
-
-    //Password field
-    final passwordField = TextFormField(
-      autofocus: false,
-      controller: passwordEditingController,
-      obscureText: true,
-      validator: (value) {
-        RegExp regex = RegExp(r'^.{6,}$');
-        if (value!.isEmpty) {
-          return ("Password is Required for Login");
-        }
-
-        if (!regex.hasMatch(value)) {
-          return ("Please Enter Valid Password Min. 6 Characters");
-        }
-      },
-      onSaved: (value) {
-        passwordEditingController.text = value!;
-      },
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        prefixIcon:
-            const Icon(Icons.vpn_key, color: Colors.white), // Icon color
-        contentPadding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        hintText: 'Password',
-        hintStyle: const TextStyle(color: Colors.white), // Hint text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is enabled
-          borderRadius: BorderRadius.circular(10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is focused
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      style: const TextStyle(color: Colors.white), // Input text color
-    );
-
-    //Confirm Password field
-    final confirmPasswordField = TextFormField(
-      autofocus: false,
-      controller: confirmPasswordEditingController,
-      obscureText: true,
-      validator: (value) {
-        if (confirmPasswordEditingController.text !=
-            passwordEditingController.text) {
-          return "Password did not match.";
-        }
-      },
-      onSaved: (value) {
-        confirmPasswordEditingController.text = value!;
-      },
-      textInputAction: TextInputAction.done,
-      decoration: InputDecoration(
-        prefixIcon:
-            const Icon(Icons.vpn_key, color: Colors.white), // Icon color
-        contentPadding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        hintText: 'Confirm Password',
-        hintStyle: const TextStyle(color: Colors.white), // Hint text color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is enabled
-          borderRadius: BorderRadius.circular(10),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderSide: const BorderSide(
-              color: Colors.white), // Border color when field is focused
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-      style: const TextStyle(color: Colors.white), // Input text color
-    );
-
-    final registerButton = Material(
-      elevation: 5,
-      borderRadius: BorderRadius.circular(30),
-      color: Colors.white,
-      child: MaterialButton(
-        padding: const EdgeInsets.fromLTRB(20, 15, 20, 15),
-        minWidth: MediaQuery.of(context).size.width,
-        onPressed: () {
-          signUp(emailEditingController.text, passwordEditingController.text);
-        },
-        child: const Text(
-          "SignUp",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-              fontSize: 20,
-              color: Color.fromRGBO(122, 81, 204, 1),
-              fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-
-    return Scaffold(
-        backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
-        resizeToAvoidBottomInset: true,
-        appBar: AppBar(
-          backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ),
-        body: Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(26.0),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: <Widget>[
-                    SizedBox(
-                        height: 160,
-                        child: Image.asset(
-                          "assets/logo.png",
-                          fit: BoxFit.contain,
-                        )),
-                    const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      // ignore: prefer_const_literals_to_create_immutables
-                      children: <Widget>[
-                        Text(
-                          'POS',
-                          style: TextStyle(
-                            color: Colors.white, // White color
-                            fontSize: 60, // Larger font size
-                            fontWeight: FontWeight.bold, // Bold font weight
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 15),
-                    fullNameField,
-                    const SizedBox(height: 15),
-                    mobileField,
-                    const SizedBox(height: 15),
-                    emailField,
-                    const SizedBox(height: 15),
-                    passwordField,
-                    const SizedBox(height: 15),
-                    confirmPasswordField,
-                    const SizedBox(height: 15),
-                    registerButton,
-                    const SizedBox(height: 25),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ));
-  }
-
-  void signUp(String email, String password) async {
-    if (formKey.currentState!.validate()) {
-      try {
-        await auth.createUserWithEmailAndPassword(
-            email: email, password: password);
-        postDetailsToFirestore();
-      } on FirebaseAuthException catch (error) {
-        // Error handling with FirebaseAuthException
-        switch (error.code) {
-          case "invalid-email":
-            errorMessage = "Your email address appears to be malformed.";
-            break;
-          case "wrong-password":
-            errorMessage = "Your password is wrong.";
-            break;
-          case "user-not-found":
-            errorMessage = "User with this email doesn't exist.";
-            break;
-          case "user-disabled":
-            errorMessage = "User with this email has been disabled.";
-            break;
-          case "too-many-requests":
-            errorMessage = "Too many requests";
-            break;
-          case "operation-not-allowed":
-            errorMessage = "Signing in with Email and Password is not enabled.";
-            break;
-          default:
-            errorMessage = "An undefined Error happened.";
-        }
-        Fluttertoast.showToast(msg: errorMessage!);
-        print(error.code);
-      } catch (e) {
-        // Generic error handling if the exception is not a FirebaseAuthException
-        Fluttertoast.showToast(msg: e.toString());
-        print(e);
+      if (mounted) {
+        Fluttertoast.showToast(msg: 'Registration successful!');
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'An error occurred during registration';
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage = 'The password provided is too weak.';
+          break;
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists for that email.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'The email address is invalid.';
+          break;
+        default:
+          errorMessage = e.message ?? errorMessage;
+      }
+      Fluttertoast.showToast(msg: errorMessage);
+    } catch (e) {
+      Fluttertoast.showToast(msg: 'An error occurred: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
       }
     }
   }
 
-  postDetailsToFirestore() async {
-    // calling our firestore
-    // calling our user model
-    // sedning these values
-
-    FirebaseFirestore firebaseFirestore = FirebaseFirestore.instance;
-    User? user = auth.currentUser;
-
-    UserModel userModel = UserModel();
-
-    // writing all the values
-    userModel.email = user!.email;
-    userModel.uid = user.uid;
-    userModel.fullName = firstNameEditingController.text;
-    userModel.mobile = mobileEditingController.text;
-    userModel.birthDate = '';
-    userModel.gender = '';
-    userModel.role = 'User';
-
-    await firebaseFirestore
-        .collection("users")
-        .doc(user.uid)
-        .set(userModel.toMap());
-    Fluttertoast.showToast(msg: "Account created successfully :) ");
-
-    // ignore: use_build_context_synchronously
-    Navigator.pushAndRemoveUntil(
-        (context),
-        MaterialPageRoute(
-            builder: (context) => HomeScreen(
-                  selectedIndex: 0,
-                )),
-        (route) => false);
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Create Account',
+                  style: TextStyle(
+                    fontSize: 32,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // Name Field
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your name';
+                    }
+                    if (value.length < 3) {
+                      return 'Name must be at least 3 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Mobile Field
+                TextFormField(
+                  controller: mobileController,
+                  decoration: const InputDecoration(
+                    labelText: 'Mobile Number',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your mobile number';
+                    }
+                    if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                      return 'Please enter a valid 10-digit mobile number';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Email Field
+                TextFormField(
+                  controller: emailController,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.email, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.emailAddress,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                        .hasMatch(value)) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Password Field
+                TextFormField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Password',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Confirm Password Field
+                TextFormField(
+                  controller: confirmPasswordController,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm Password',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  obscureText: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm your password';
+                    }
+                    if (value != passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Birth Date Field
+                TextFormField(
+                  controller: birthDateController,
+                  decoration: const InputDecoration(
+                    labelText: 'Birth Date',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.calendar_today, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  readOnly: true,
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      selectedDate = picked;
+                      birthDateController.text =
+                          DateFormat('dd/MM/yyyy').format(picked);
+                    }
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select your birth date';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Gender Field
+                TextFormField(
+                  controller: genderController,
+                  decoration: const InputDecoration(
+                    labelText: 'Gender',
+                    labelStyle: TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person_outline, color: Colors.white),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your gender';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 32),
+                // Register Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : register,
+                    child: isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                            'Register',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

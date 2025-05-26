@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:thepapercup/modal/item_modal.dart';
+import 'package:thepapercup/modal/item_model.dart';
 import 'package:thepapercup/services/image_service.dart';
+import 'package:thepapercup/services/category_service.dart';
+import 'package:thepapercup/modal/category_model.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -14,29 +16,83 @@ class InventoryScreen extends StatefulWidget {
 class _InventoryScreen extends State<InventoryScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
+  final TextEditingController _costController = TextEditingController();
   final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _imageUrlController = TextEditingController();
   final ImageService _imageService = ImageService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<ItemModel> items = [];
   String? _selectedCategory;
   String? _selectedImageUrl;
-  bool _isLoading = false;
+  bool _isLoading = true;
 
-  List<String> categories = [
-    'Hot Coffee',
-    'Cold Coffee',
-    'Tea',
-    'Snacks',
-    'Others'
-  ];
+  List<CategoryModel> _categories = [];
 
   @override
   void initState() {
     super.initState();
+    _loadItems();
+    _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _costController.dispose();
+    _quantityController.dispose();
+    _imageUrlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadItems() async {
+    try {
+      // Listen to real-time updates for itemsForSale
+      _firestore.collection('itemsForSale').snapshots().listen((snapshot) {
+        if (!mounted) return; // Check if the widget is still mounted
+        List<ItemModel> loadedItems = snapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+          return ItemModel.fromMap(data, doc.id); // Use the fromMap constructor
+        }).toList();
+
+        setState(() {
+          items = loadedItems; // Update the items list
+          _isLoading = false;
+        });
+      });
+    } catch (e) {
+      print('Error loading items: $e');
+      Fluttertoast.showToast(
+        msg: 'Error loading items: $e',
+        backgroundColor: Colors.red,
+      );
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      CategoryService().getCategories().listen((categories) {
+        if (mounted) {
+          setState(() {
+            _categories = categories;
+          });
+        }
+      });
+    } catch (e) {
+      print('Error loading categories: $e');
+      // Optionally show a toast or other error feedback
+    }
   }
 
   void _showAddItemDialog() {
     _nameController.clear();
     _priceController.clear();
+    _costController.clear();
     _quantityController.clear();
+    _imageUrlController.clear();
     _selectedCategory = null;
     _selectedImageUrl = null;
 
@@ -104,6 +160,17 @@ class _InventoryScreen extends State<InventoryScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Price',
                         border: OutlineInputBorder(),
+                        prefixText: 'RM ',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _costController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Cost',
+                        border: OutlineInputBorder(),
+                        prefixText: 'RM ',
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -117,21 +184,27 @@ class _InventoryScreen extends State<InventoryScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _selectedCategory,
                       decoration: const InputDecoration(
                         labelText: 'Category',
-                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.category),
                       ),
-                      items: categories.map((String category) {
+                      value: _selectedCategory,
+                      items: _categories.map((category) {
                         return DropdownMenuItem<String>(
-                          value: category,
-                          child: Text(category),
+                          value: category.id,
+                          child: Text(category.name),
                         );
                       }).toList(),
-                      onChanged: (String? newValue) {
+                      onChanged: (newValue) {
                         setState(() {
                           _selectedCategory = newValue;
                         });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
+                        }
+                        return null;
                       },
                     ),
                   ],
@@ -149,6 +222,7 @@ class _InventoryScreen extends State<InventoryScreen> {
                   onPressed: () async {
                     if (_nameController.text.isEmpty ||
                         _priceController.text.isEmpty ||
+                        _costController.text.isEmpty ||
                         _quantityController.text.isEmpty ||
                         _selectedCategory == null) {
                       Fluttertoast.showToast(
@@ -160,13 +234,16 @@ class _InventoryScreen extends State<InventoryScreen> {
 
                     try {
                       double price = double.parse(_priceController.text);
+                      double cost = double.parse(_costController.text);
                       int quantity = int.parse(_quantityController.text);
 
-                      ItemModel newItem = ItemModel(
+                      final newItem = ItemModel(
+                        id: '',
                         name: _nameController.text,
                         price: price,
+                        cost: cost,
                         quantity: quantity,
-                        category: _selectedCategory,
+                        category: _selectedCategory!,
                         imageUrl: _selectedImageUrl,
                       );
 
@@ -174,12 +251,13 @@ class _InventoryScreen extends State<InventoryScreen> {
                           .collection('itemsForSale')
                           .add(newItem.toMap());
 
-                      // ignore: use_build_context_synchronously
-                      Navigator.of(context).pop();
-                      Fluttertoast.showToast(
-                        msg: 'Item added successfully',
-                        backgroundColor: Colors.green,
-                      );
+                      if (mounted) {
+                        Navigator.of(context).pop();
+                        Fluttertoast.showToast(
+                          msg: 'Item added successfully',
+                          backgroundColor: Colors.green,
+                        );
+                      }
                     } catch (e) {
                       Fluttertoast.showToast(
                         msg: 'Error adding item: $e',
@@ -199,10 +277,10 @@ class _InventoryScreen extends State<InventoryScreen> {
   void _showEditItemDialog(ItemModel item) {
     _nameController.text = item.name ?? '';
     _priceController.text = item.price?.toString() ?? '';
+    _costController.text = item.cost?.toString() ?? '';
     _quantityController.text = item.quantity?.toString() ?? '';
-    _selectedCategory =
-        categories.contains(item.category) ? item.category : categories.last;
-    _selectedImageUrl = item.imageUrl;
+    _imageUrlController.text = item.imageUrl ?? '';
+    _selectedCategory = item.category;
 
     showDialog(
       context: context,
@@ -272,6 +350,17 @@ class _InventoryScreen extends State<InventoryScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Price',
                         border: OutlineInputBorder(),
+                        prefixText: 'RM ',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _costController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Cost',
+                        border: OutlineInputBorder(),
+                        prefixText: 'RM ',
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -285,23 +374,27 @@ class _InventoryScreen extends State<InventoryScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: _selectedCategory,
                       decoration: const InputDecoration(
                         labelText: 'Category',
-                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.category),
                       ),
-                      items: categories.map((String category) {
+                      value: _selectedCategory,
+                      items: _categories.map((category) {
                         return DropdownMenuItem<String>(
-                          value: category,
-                          child: Text(category),
+                          value: category.id,
+                          child: Text(category.name),
                         );
                       }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() {
-                            _selectedCategory = newValue;
-                          });
+                      onChanged: (newValue) {
+                        setState(() {
+                          _selectedCategory = newValue;
+                        });
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please select a category';
                         }
+                        return null;
                       },
                     ),
                   ],
@@ -319,6 +412,7 @@ class _InventoryScreen extends State<InventoryScreen> {
                   onPressed: () async {
                     if (_nameController.text.isEmpty ||
                         _priceController.text.isEmpty ||
+                        _costController.text.isEmpty ||
                         _quantityController.text.isEmpty ||
                         _selectedCategory == null) {
                       Fluttertoast.showToast(
@@ -330,6 +424,7 @@ class _InventoryScreen extends State<InventoryScreen> {
 
                     try {
                       double price = double.parse(_priceController.text);
+                      double cost = double.parse(_costController.text);
                       int quantity = int.parse(_quantityController.text);
 
                       await FirebaseFirestore.instance
@@ -338,9 +433,12 @@ class _InventoryScreen extends State<InventoryScreen> {
                           .update({
                         'name': _nameController.text,
                         'price': price,
+                        'cost': cost,
                         'quantity': quantity,
                         'category': _selectedCategory,
-                        'imageUrl': _selectedImageUrl,
+                        'imageUrl': _imageUrlController.text.isNotEmpty
+                            ? _imageUrlController.text
+                            : null,
                       });
 
                       Navigator.of(context).pop();
@@ -382,14 +480,12 @@ class _InventoryScreen extends State<InventoryScreen> {
             .orderBy('name')
             .snapshots(),
         builder: (context, snapshot) {
-          // Show loading spinner while waiting for data
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(),
             );
           }
 
-          // Show error message if something went wrong
           if (snapshot.hasError) {
             return Center(
               child: Column(
@@ -410,7 +506,6 @@ class _InventoryScreen extends State<InventoryScreen> {
             );
           }
 
-          // Show message if no items exist
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(
               child: Column(
@@ -439,79 +534,16 @@ class _InventoryScreen extends State<InventoryScreen> {
             );
           }
 
-          // Convert the documents to ItemModel objects
           List<ItemModel> items = snapshot.data!.docs.map((doc) {
-            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-            data['id'] = doc.id; // Add the document ID to the data
-            return ItemModel.fromMap(data);
+            return ItemModel.fromMap(
+                doc.data() as Map<String, dynamic>, doc.id);
           }).toList();
 
-          // Show the list of items
           return ListView.builder(
             itemCount: items.length,
-            padding: const EdgeInsets.all(8),
             itemBuilder: (context, index) {
               final item = items[index];
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: ListTile(
-                  leading: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
-                            item.imageUrl!,
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                width: 50,
-                                height: 50,
-                                color: Colors.grey[200],
-                                child: const Icon(Icons.image_not_supported),
-                              );
-                            },
-                          ),
-                        )
-                      : Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Icon(Icons.inventory),
-                        ),
-                  title: Text(
-                    item.name ?? 'No name',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                          'Price: \$${item.price?.toStringAsFixed(2) ?? '0.00'}'),
-                      Text('Quantity: ${item.quantity ?? 0}'),
-                      Text('Category: ${item.category ?? 'Uncategorized'}'),
-                    ],
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        onPressed: () => _showEditItemDialog(item),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete),
-                        color: Colors.red,
-                        onPressed: () => _showDeleteConfirmation(item),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+              return _buildItemCard(item);
             },
           );
         },
@@ -567,6 +599,146 @@ class _InventoryScreen extends State<InventoryScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildItemCard(ItemModel item) {
+    // Find the category name using the item's category ID
+    String categoryName = 'Uncategorized'; // Default category name
+
+    if (item.category != null &&
+        item.category!.isNotEmpty &&
+        _categories.isNotEmpty) {
+      try {
+        final foundCategory = _categories.firstWhere(
+          (category) => category.id == item.category,
+          orElse: () => CategoryModel(
+              id: '', name: 'Uncategorized'), // Provide a default category
+        );
+        categoryName = foundCategory.name;
+      } catch (e) {
+        // Catch potential errors during firstWhere if orElse somehow fails (shouldn't happen but for safety)
+        print('Error finding category for item ${item.name}: $e');
+        categoryName = 'Unknown Category'; // Another fallback
+      }
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(
+          horizontal: 8.0, vertical: 4.0), // Adjusted margin
+      elevation: 2.0,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          // Use a Row for the main layout
+          crossAxisAlignment:
+              CrossAxisAlignment.start, // Align items to the top
+          children: [
+            // Item Image (Optional)
+            Container(
+              // Use a Container to give the image a fixed size
+              width: 80, // Fixed width for the image container
+              height: 80, // Fixed height for the image container
+              margin: const EdgeInsets.only(
+                  right: 12.0), // Add some space to the right of the image
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8.0),
+                color: Colors.grey[200], // Placeholder background color
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8.0),
+                child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+                    ? Image.network(
+                        item.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(Icons.image_not_supported,
+                              size: 50,
+                              color:
+                                  Colors.grey); // Adjusted icon size and color
+                        },
+                      )
+                    : const Center(
+                        // Centered placeholder icon
+                        child: Icon(Icons.image_not_supported,
+                            size: 40,
+                            color: Colors.grey), // Adjusted icon size and color
+                      ),
+              ),
+            ),
+            // Item Details
+            Expanded(
+              // Use Expanded to make the text details take the available space
+              child: Column(
+                // Stack text details vertically
+                crossAxisAlignment:
+                    CrossAxisAlignment.start, // Align text to the left
+                children: [
+                  Text(
+                    item.name ?? '',
+                    style: const TextStyle(
+                        fontSize: 16.0, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'Category: $categoryName', // Display category name
+                    style: const TextStyle(
+                        fontSize: 13.0,
+                        color: Colors
+                            .blueGrey), // Adjusted font size and color for category
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'Price: RM${item.price?.toStringAsFixed(2) ?? "0.00"}',
+                    style: const TextStyle(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500), // Adjusted font style
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'Cost: RM${item.cost?.toStringAsFixed(2) ?? "0.00"}',
+                    style: const TextStyle(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500), // Adjusted font style
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    'Quantity: ${item.quantity ?? 0}',
+                    style: const TextStyle(
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w500), // Adjusted font style
+                  ),
+                ],
+              ),
+            ),
+            // Actions
+            Column(
+              // Use a Column for the action buttons
+              mainAxisSize:
+                  MainAxisSize.min, // Make the column take minimum space
+              mainAxisAlignment:
+                  MainAxisAlignment.center, // Center buttons vertically
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20), // Adjusted icon size
+                  padding: EdgeInsets.zero, // Remove padding
+                  constraints: const BoxConstraints(), // Remove constraints
+                  onPressed: () => _showEditItemDialog(item),
+                ),
+                const SizedBox(height: 8.0), // Space between buttons
+                IconButton(
+                  icon: const Icon(Icons.delete,
+                      size: 20,
+                      color: Colors.red), // Adjusted icon size and color
+                  padding: EdgeInsets.zero, // Remove padding
+                  constraints: const BoxConstraints(), // Remove constraints
+                  onPressed: () => _showDeleteConfirmation(item),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

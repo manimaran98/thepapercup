@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:thepapercup/Views/Sales/sales.dart';
 import 'package:thepapercup/Views/Sales/inventory.dart';
 import 'package:thepapercup/Views/account_screen.dart';
+import 'package:thepapercup/Views/dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int selectedIndex;
@@ -20,6 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _selectedIndex = widget.selectedIndex;
     _screens = [
+      const DashboardScreen(), // Dashboard as first screen
       const SalesScreen(userId: ''), // We'll update this with actual user ID
       const InventoryScreen(),
       const AccountScreen(),
@@ -37,7 +39,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed, // Add this to show all items
         items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.point_of_sale),
             label: 'Sales',

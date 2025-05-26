@@ -1,11 +1,13 @@
 class UserModel {
-  String? uid;
-  String? email;
-  String? fullName;
-  String? mobile;
-  String? birthDate;
-  String? gender;
-  String? role;
+  final String? uid;
+  final String? email;
+  final String? fullName;
+  final String? mobile;
+  final String? birthDate;
+  final String? gender;
+  final String? role;
+  final String? profileImageUrl;
+  final bool isDeleted;
 
   UserModel({
     this.uid,
@@ -15,32 +17,38 @@ class UserModel {
     this.birthDate,
     this.gender,
     this.role,
+    this.profileImageUrl,
+    this.isDeleted = false,
   });
 
 //Receive Data from Server
 
-  factory UserModel.fromMap(map) {
+  factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
-      uid: map['user_id'],
+      uid: map['uid'],
       email: map['email'],
       fullName: map['fullName'],
       mobile: map['mobile'],
       birthDate: map['birthDate'],
       gender: map['gender'],
       role: map['role'],
+      profileImageUrl: map['profileImageUrl'],
+      isDeleted: map['isDeleted'] ?? false,
     );
   }
 
   //Sending Data to the Server
   Map<String, dynamic> toMap() {
     return {
-      'user_id': uid,
+      'uid': uid,
       'email': email,
       'fullName': fullName,
       'mobile': mobile,
       'birthDate': birthDate,
       'gender': gender,
       'role': role,
+      'profileImageUrl': profileImageUrl,
+      'isDeleted': isDeleted,
     };
   }
 }
