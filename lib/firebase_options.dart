@@ -16,26 +16,10 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    if (kIsWeb) {
-      return web;
-    }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
-      case TargetPlatform.iOS:
-        return ios;
-      case TargetPlatform.macOS:
-        return macos;
-      case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -43,39 +27,11 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDoZR_UJVKCaGhMY0Be4s62-yq2WInbce4',
-    appId: '1:771224258484:web:56c89d5e8610555c6554e1',
-    messagingSenderId: '771224258484',
-    projectId: 'thepapercup-ebbf7',
-    authDomain: 'thepapercup-ebbf7.firebaseapp.com',
-    storageBucket: 'thepapercup-ebbf7.appspot.com',
-    measurementId: 'G-KRMRJKHHGR',
-  );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCM162fwGcGg-__NYGj_NJWNCoUg7yR1L0',
     appId: '1:771224258484:android:5b585b192f1c50686554e1',
     messagingSenderId: '771224258484',
     projectId: 'thepapercup-ebbf7',
-    storageBucket: 'thepapercup-ebbf7.appspot.com',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAyZUSC-gODdu-KuEDvmPCESJXklR6d87Q',
-    appId: '1:771224258484:ios:f036caa82a6d54056554e1',
-    messagingSenderId: '771224258484',
-    projectId: 'thepapercup-ebbf7',
-    storageBucket: 'thepapercup-ebbf7.appspot.com',
-    iosBundleId: 'com.example.thepapercup',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAyZUSC-gODdu-KuEDvmPCESJXklR6d87Q',
-    appId: '1:771224258484:ios:8503c08084456c786554e1',
-    messagingSenderId: '771224258484',
-    projectId: 'thepapercup-ebbf7',
-    storageBucket: 'thepapercup-ebbf7.appspot.com',
-    iosBundleId: 'com.example.thepapercup.RunnerTests',
+    storageBucket: 'thepapercup-ebbf7.firebasestorage.app',
   );
 }

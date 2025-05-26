@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:thepapercup/Views/Login/login_screen.dart';
 import 'package:thepapercup/Views/home_screen.dart';
-import 'package:thepapercup/Views/loginScreen.dart';
 import 'package:thepapercup/modal/user_model.dart';
 
 class checkUser extends StatefulWidget {
@@ -46,7 +46,7 @@ class _checkUserState extends State<checkUser> {
     });
 
     if (role != 'User') {
-      navigateNext(const loginScreen());
+      navigateNext(const LoginScreen());
       Fluttertoast.showToast(msg: "Unauthorised Access");
     } else if (role == 'User') {
       navigateNext(HomeScreen(

@@ -3,21 +3,32 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:thepapercup/Views/home_screen.dart';
-import 'package:thepapercup/Views/login_screen.dart';
+import 'package:thepapercup/Views/Login/login_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with default options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  try {
+    // Initialize Firebase with default options
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // Initialize App Check
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-  );
+    // Initialize App Check with debug provider for development
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.debug,
+      appleProvider: AppleProvider.debug,
+    );
+
+    // Verify Firebase initialization
+    print('Firebase initialized successfully');
+    print('Firebase app name: ${Firebase.app().name}');
+    print('Firebase project ID: ${Firebase.app().options.projectId}');
+    print('Firebase storage bucket: ${Firebase.app().options.storageBucket}');
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+  }
 
   runApp(const MyApp());
 }

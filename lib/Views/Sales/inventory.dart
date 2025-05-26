@@ -174,6 +174,7 @@ class _InventoryScreen extends State<InventoryScreen> {
                           .collection('itemsForSale')
                           .add(newItem.toMap());
 
+                      // ignore: use_build_context_synchronously
                       Navigator.of(context).pop();
                       Fluttertoast.showToast(
                         msg: 'Item added successfully',
