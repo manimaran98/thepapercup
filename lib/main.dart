@@ -42,8 +42,20 @@ class MyApp extends StatelessWidget {
       title: 'The Paper Cup',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple,
+        primaryColor: const Color.fromRGBO(122, 81, 204, 1),
+        scaffoldBackgroundColor: Colors.white,
         visualDensity: VisualDensity.adaptivePlatformDensity,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color.fromRGBO(122, 81, 204, 1),
+          foregroundColor: Colors.white,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color.fromRGBO(122, 81, 204, 1),
+            foregroundColor: Colors.white,
+          ),
+        ),
       ),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),

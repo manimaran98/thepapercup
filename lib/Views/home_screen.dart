@@ -59,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
+        selectedItemColor: const Color.fromRGBO(122, 81, 204, 1),
+        unselectedItemColor: Colors.grey,
         onTap: _onItemTapped,
       ),
     );

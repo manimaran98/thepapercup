@@ -103,11 +103,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Email',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.email, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   validator: (value) {
@@ -124,11 +138,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Password',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.lock, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   validator: (value) {
@@ -150,12 +178,24 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 50,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor:
+                                const Color.fromRGBO(122, 81, 204, 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 3,
+                          ),
                           child: _isLoading
                               ? const CircularProgressIndicator(
-                                  color: Colors.white)
+                                  color: Color.fromRGBO(122, 81, 204, 1))
                               : const Text(
                                   'Login',
-                                  style: TextStyle(fontSize: 18),
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                         ),
                       ),
@@ -176,9 +216,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   );
                                 },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(
+                                  color: Colors.white, width: 2),
+                            ),
+                            elevation: 0,
+                          ),
                           child: const Text(
                             'Register',
-                            style: TextStyle(fontSize: 18),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),

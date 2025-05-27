@@ -606,7 +606,6 @@ class _AccountScreenState extends State<AccountScreen> {
     try {
       final QuerySnapshot snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .where('isDeleted', isEqualTo: false)
           .orderBy('fullName')
           .get();
 
@@ -654,114 +653,124 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> showUserManagementDialog() async {
+    await loadUsers(); // Reload users before showing dialog
+    if (!mounted) return;
+
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('User Management'),
         content: SizedBox(
           width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: users.length,
-            itemBuilder: (context, index) {
-              final user = users[index];
-              return ListTile(
-                title: Text(user.fullName ?? ''),
-                subtitle: Text('${user.email} (${user.role})'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PopupMenuButton<String>(
-                      onSelected: (String value) async {
-                        if (value == 'delete') {
-                          // Don't allow deleting self
-                          if (user.uid == this.user?.uid) {
-                            Fluttertoast.showToast(
-                                msg: 'Cannot delete your own account');
-                            return;
-                          }
+          height: 400, // Fixed height for better visibility
+          child: users.isEmpty
+              ? const Center(child: Text('No users found'))
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        title: Text(user.fullName ?? 'No Name'),
+                        subtitle: Text('${user.email} (${user.role})'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            PopupMenuButton<String>(
+                              onSelected: (String value) async {
+                                if (value == 'delete') {
+                                  if (user.uid == this.user?.uid) {
+                                    Fluttertoast.showToast(
+                                        msg: 'Cannot delete your own account');
+                                    return;
+                                  }
 
-                          final bool? confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Confirm Delete'),
-                              content: Text(
-                                  'Are you sure you want to delete ${user.fullName}? This action can be undone later.'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  child: const Text('Cancel'),
+                                  final bool? confirm = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Confirm Delete'),
+                                      content: Text(
+                                          'Are you sure you want to delete ${user.fullName}?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context, true),
+                                          child: const Text('Delete'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirm == true) {
+                                    await deleteUser(user.uid!);
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                      showUserManagementDialog();
+                                    }
+                                  }
+                                } else if (value == 'role') {
+                                  if (user.uid == this.user?.uid) {
+                                    Fluttertoast.showToast(
+                                        msg: 'Cannot change your own role');
+                                    return;
+                                  }
+
+                                  final String? newRole =
+                                      await showDialog<String>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Change Role'),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ListTile(
+                                            title: const Text('Admin'),
+                                            onTap: () =>
+                                                Navigator.pop(context, 'Admin'),
+                                          ),
+                                          ListTile(
+                                            title: const Text('User'),
+                                            onTap: () =>
+                                                Navigator.pop(context, 'User'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+
+                                  if (newRole != null) {
+                                    await updateUserRole(user.uid!, newRole);
+                                    if (mounted) {
+                                      Navigator.pop(context);
+                                      showUserManagementDialog();
+                                    }
+                                  }
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem(
+                                  value: 'role',
+                                  child: Text('Change Role'),
                                 ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('Delete'),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Delete'),
                                 ),
                               ],
                             ),
-                          );
-
-                          if (confirm == true) {
-                            await deleteUser(user.uid!);
-                            if (mounted) {
-                              Navigator.pop(context);
-                              showUserManagementDialog();
-                            }
-                          }
-                        } else if (value == 'role') {
-                          // Don't allow changing own role
-                          if (user.uid == this.user?.uid) {
-                            Fluttertoast.showToast(
-                                msg: 'Cannot change your own role');
-                            return;
-                          }
-
-                          final String? newRole = await showDialog<String>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('Change Role'),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    title: const Text('Admin'),
-                                    onTap: () =>
-                                        Navigator.pop(context, 'Admin'),
-                                  ),
-                                  ListTile(
-                                    title: const Text('User'),
-                                    onTap: () => Navigator.pop(context, 'User'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-
-                          if (newRole != null) {
-                            await updateUserRole(user.uid!, newRole);
-                            if (mounted) {
-                              Navigator.pop(context);
-                              showUserManagementDialog();
-                            }
-                          }
-                        }
-                      },
-                      itemBuilder: (BuildContext context) => [
-                        const PopupMenuItem(
-                          value: 'role',
-                          child: Text('Change Role'),
+                          ],
                         ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Delete'),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
         actions: [
           TextButton(
@@ -823,7 +832,7 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
             const SizedBox(height: 10),
             _buildSettingsTile('Manage Users', Icons.group, () {
-              // TODO: Navigate to User Management Screen
+              showUserManagementDialog();
             }),
             _buildSettingsTile('Manage Categories', Icons.category, () {
               _showManageCategoriesDialog();

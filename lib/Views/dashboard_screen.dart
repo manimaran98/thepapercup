@@ -27,17 +27,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool showByAmount = true; // Toggle between amount and quantity
 
   final SalesService _salesService = SalesService();
+  final ReceiptService _receiptService = ReceiptService();
 
   // Analytics Data
   Map<String, double> salesData = {};
   Map<String, double> categoryData = {};
   Map<String, double> paymentData = {};
   Map<String, double> profitData = {};
-  Map<String, dynamic> inventoryData = {};
+  Map<String, dynamic> inventoryData =
+      {}; // Inventory data, will now include categoryId
 
   // Quantity Data
   Map<String, int> categoryQuantityData = {};
   Map<String, int> paymentQuantityData = {};
+
+  // Aggregated Item Data for Best Sellers Screen and detailed dashboard views
+  Map<String, Map<String, dynamic>> aggregatedItemData = {};
+
+  // Categories data
+  Map<String, String> categoriesMap = {}; // Map categoryId to categoryName
 
   @override
   void initState() {
@@ -62,6 +70,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'Year':
         // Get the start of the selected year
         return DateTime(date.year, 1, 1);
+      case 'All Time':
+        // Return a very old date to include all records
+        return DateTime(2020, 1, 1);
       default:
         return date;
     }
@@ -91,6 +102,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 'Year':
         // End of the selected year
         return DateTime(date.year, 12, 31, 23, 59, 59, 999);
+      case 'All Time':
+        // Return current date and time for all time
+        return DateTime.now();
       default:
         return date
             .add(const Duration(days: 1))
@@ -110,25 +124,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print('Start date: $startDate');
       print('End date: $endDate');
 
-      // Load sales data
-      salesData = await _salesService.getTopSellingItems(startDate, endDate);
+      // Fetch receipts for the date range. Add 1 day to endDate to include the entire end day.
+      final receipts = await _receiptService
+          .getReceiptsByDateRange(
+              startDate, endDate.add(const Duration(days: 1)))
+          .first;
 
-      // Load category data
-      categoryData = await _salesService.getSalesByCategory(startDate, endDate);
-      categoryQuantityData =
-          await _salesService.getSalesQuantityByCategory(startDate, endDate);
-
-      // Load payment method data
-      paymentData =
-          await _salesService.getSalesByPaymentMethod(startDate, endDate);
-      paymentQuantityData = await _salesService.getSalesQuantityByPaymentMethod(
-          startDate, endDate);
-
-      // Load profit data
-      profitData = await _salesService.getProfitAnalysis(startDate, endDate);
-
-      // Load inventory data
+      // Load inventory data first to get category IDs
       await _loadInventoryData();
+
+      // Load categories from the categories collection
+      await _loadCategoriesMap();
+
+      // Aggregate item data from receipts for Best Sellers Screen and detailed views
+      aggregatedItemData = _aggregateItems(receipts);
+
+      // Populate other dashboard data based on fetched receipts
+      salesData.clear();
+      categoryData.clear();
+      paymentData.clear();
+      categoryQuantityData.clear();
+      paymentQuantityData.clear();
+      profitData = {'revenue': 0.0, 'cost': 0.0, 'profit': 0.0, 'margin': 0.0};
+
+      double totalRevenue = 0.0;
+
+      for (var receipt in receipts) {
+        totalRevenue += receipt.total;
+
+        final paymentMethod = receipt.paymentMethod ?? 'Unknown';
+        paymentData[paymentMethod] =
+            (paymentData[paymentMethod] ?? 0.0) + receipt.total;
+        paymentQuantityData[paymentMethod] =
+            (paymentQuantityData[paymentMethod] ?? 0) +
+                receipt.items
+                    .fold(0, (sum, item) => sum + (item['quantity'] as int));
+
+        for (var item in receipt.items) {
+          final itemName = item['name'] as String;
+          // Use the categoryId from inventoryData and categoriesMap to get the category name
+          final categoryId = inventoryData[itemName]?['categoryId'] ?? '';
+          final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
+
+          final itemTotal = item['total'] as double;
+          final itemQuantity = item['quantity'] as int;
+
+          salesData[itemName] = (salesData[itemName] ?? 0.0) + itemTotal;
+
+          categoryData[categoryName] =
+              (categoryData[categoryName] ?? 0.0) + itemTotal;
+          categoryQuantityData[categoryName] =
+              (categoryQuantityData[categoryName] ?? 0) + itemQuantity;
+        }
+      }
+
+      profitData['revenue'] = totalRevenue;
 
       setState(() => isLoading = false);
     } catch (e) {
@@ -145,9 +195,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Map<String, dynamic> inventory = {};
       for (var doc in inventorySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        inventory[data['name'] as String] = {
+        final itemName = data['name'] as String;
+        final categoryId = data['Category'] ?? '';
+        // Use the categoriesMap to get the category name
+        final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
+
+        inventory[itemName] = {
           'quantity': data['quantity'] ?? 0,
-          'category': data['category'] ?? 'Uncategorized',
+          'categoryId': categoryId, // Store category ID
+          'categoryName': categoryName, // Store category NAME
           'lastUpdated': data['lastUpdated'] ?? DateTime.now(),
         };
       }
@@ -157,6 +213,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       print('Error loading inventory data: $e');
+    }
+  }
+
+  Future<void> _loadCategoriesMap() async {
+    try {
+      final QuerySnapshot categoriesSnapshot =
+          await FirebaseFirestore.instance.collection('categories').get();
+      Map<String, String> loadedCategoriesMap = {};
+      for (var doc in categoriesSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        loadedCategoriesMap[doc.id] =
+            data['name'] as String; // Map category ID to name
+      }
+      setState(() {
+        categoriesMap = loadedCategoriesMap;
+      });
+    } catch (e) {
+      print('Error loading categories map: $e');
     }
   }
 
@@ -174,52 +248,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () async {
-              final DateTime? picked = await showDatePicker(
-                context: context,
-                initialDate: selectedDate,
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-              );
-              if (picked != null) {
-                setState(() {
-                  selectedDate = picked;
-                  // When a specific date is selected, set period to Today
-                  selectedPeriod = 'Today';
-                });
-                loadDashboardData();
-              }
-            },
-          ),
-          PopupMenuButton<String>(
-            onSelected: (String value) {
-              setState(() {
-                selectedPeriod = value;
-                // Don't reset selectedDate when changing period
-              });
-              loadDashboardData();
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
-                value: 'Today',
-                child: Text('Today'),
-              ),
-              const PopupMenuItem(
-                value: 'Week',
-                child: Text('This Week'),
-              ),
-              const PopupMenuItem(
-                value: 'Month',
-                child: Text('This Month'),
-              ),
-              const PopupMenuItem(
-                value: 'Year',
-                child: Text('This Year'),
-              ),
-            ],
-          ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             onPressed: generateReport,
@@ -240,6 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ButtonSegment(value: 'Week', label: Text('Week')),
                     ButtonSegment(value: 'Month', label: Text('Month')),
                     ButtonSegment(value: 'Year', label: Text('Year')),
+                    ButtonSegment(value: 'All Time', label: Text('All Time')),
                   ],
                   selected: {selectedPeriod},
                   onSelectionChanged: (Set<String> newSelection) {
@@ -288,32 +317,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 16),
             // Summary Cards
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildSummaryCard(
+                      'Total Sales',
+                      'RM${profitData['revenue']?.toStringAsFixed(2) ?? '0.00'}',
+                      Icons.attach_money,
+                      const Color.fromRGBO(122, 81, 204, 1),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSummaryCard(
+                      'Total Items Sold',
+                      '${paymentQuantityData.values.fold<int>(0, (sum, quantity) => sum + quantity)}',
+                      Icons.shopping_bag,
+                      const Color.fromRGBO(122, 81, 204, 1),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildSummaryCard(
+                      'Total Orders',
+                      '${salesData.length}',
+                      Icons.receipt_long,
+                      const Color.fromRGBO(122, 81, 204, 1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
-                  child: _buildSummaryCard(
-                    'Total Sales',
-                    'RM${profitData['revenue']?.toStringAsFixed(2) ?? '0.00'}',
-                    Icons.attach_money,
-                    Colors.green,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => BestSellersScreen(
+                            items: aggregatedItemData,
+                            startDate: _getStartDate(),
+                            endDate: _getEndDate(),
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildSummaryCard(
+                      'Best Seller',
+                      salesData.isNotEmpty
+                          ? salesData.entries
+                              .reduce((a, b) => a.value > b.value ? a : b)
+                              .key
+                          : 'No Data',
+                      Icons.star,
+                      const Color.fromRGBO(122, 81, 204, 1),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildSummaryCard(
-                    'Total Orders',
-                    '${salesData.length}',
-                    Icons.shopping_cart,
-                    Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildSummaryCard(
-                    'Average Order',
-                    'RM${profitData['revenue']?.toStringAsFixed(2) ?? '0.00'}',
-                    Icons.analytics,
-                    Colors.orange,
+                    'Profit Margin',
+                    '${profitData['margin']?.toStringAsFixed(1) ?? '0.0'}%',
+                    Icons.trending_up,
+                    const Color.fromRGBO(122, 81, 204, 1),
                   ),
                 ),
               ],
@@ -325,17 +397,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 Expanded(
                   child: AspectRatio(
-                    aspectRatio: 1.6, // Further adjusted aspect ratio
+                    aspectRatio: 1.6,
                     child: _buildChartCard(
-                      'Sales by Category',
-                      _buildCategoryChart(),
+                      'Top Selling Items',
+                      _buildItemsChart(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: AspectRatio(
-                    aspectRatio: 1.6, // Further adjusted aspect ratio
+                    aspectRatio: 1.6,
                     child: _buildChartCard(
                       'Sales by Payment Method',
                       _buildPaymentMethodChart(),
@@ -528,11 +600,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .where((entry) => (entry.value['quantity'] as int) < 10)
         .toList();
 
+    // Sort low stock items alphabetically by name for consistent display
+    lowStockItems.sort((a, b) => a.key.compareTo(b.key));
+
     return lowStockItems.map((entry) {
       return Card(
         child: ListTile(
           title: Text(entry.key),
-          subtitle: Text('Category: ${entry.value['category']}'),
+          // Use the stored categoryName for display
+          subtitle: Text('Category: ${entry.value['categoryName']}'),
           trailing: Text(
             'Qty: ${entry.value['quantity']}',
             style: const TextStyle(
@@ -621,11 +697,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Color _getPaymentMethodColor(String method) {
     switch (method.toLowerCase()) {
       case 'cash':
-        return Colors.green;
+        return const Color.fromRGBO(122, 81, 204, 1);
       case 'card':
-        return Colors.blue;
+        return const Color.fromRGBO(122, 81, 204, 1);
       case 'qr':
-        return Colors.purple;
+        return const Color.fromRGBO(122, 81, 204, 1);
       default:
         return Colors.grey;
     }
@@ -724,28 +800,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCategoryChart() {
-    if (categoryData.isEmpty) {
+  Widget _buildItemsChart() {
+    if (salesData.isEmpty) {
       return const Center(child: Text('No data available'));
     }
+
+    // Sort items by sales amount/quantity and take top 5
+    final sortedItems = salesData.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topItems = sortedItems.take(5).toList();
+
+    // Get the maximum value for the Y axis
+    final maxValue = showByAmount
+        ? topItems.map((e) => e.value).reduce((a, b) => a > b ? a : b)
+        : topItems.map((e) => e.value).reduce((a, b) => a > b ? a : b);
 
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: showByAmount
-            ? categoryData.values.reduce((a, b) => a > b ? a : b) * 1.2
-            : categoryQuantityData.values.reduce((a, b) => a > b ? a : b) * 1.2,
+        maxY: maxValue * 1.2,
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
             tooltipBgColor: Colors.blueGrey,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final category = categoryData.keys.elementAt(groupIndex);
+              final item = topItems[groupIndex].key;
               final value = showByAmount
-                  ? 'RM${categoryData[category]?.toStringAsFixed(2)}'
-                  : '${categoryQuantityData[category]} units';
+                  ? 'RM${topItems[groupIndex].value.toStringAsFixed(2)}'
+                  : '${topItems[groupIndex].value.toInt()} units';
               return BarTooltipItem(
-                '$category\n$value',
+                '$item\n$value',
                 const TextStyle(color: Colors.white),
               );
             },
@@ -757,11 +841,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             sideTitles: SideTitles(
               showTitles: true,
               getTitlesWidget: (value, meta) {
-                if (value >= 0 && value < categoryData.length) {
+                if (value >= 0 && value < topItems.length) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      categoryData.keys.elementAt(value.toInt()),
+                      topItems[value.toInt()].key,
                       style: const TextStyle(
                         color: Colors.black,
                         fontSize: 12,
@@ -799,16 +883,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
         borderData: FlBorderData(show: false),
-        barGroups: categoryData.entries.map((entry) {
-          final index = categoryData.keys.toList().indexOf(entry.key);
+        barGroups: topItems.asMap().entries.map((entry) {
+          // For quantity view, we need to get the actual quantity from the sales data
+          final value = showByAmount
+              ? entry.value.value
+              : entry.value.value.toInt().toDouble();
           return BarChartGroupData(
-            x: index,
+            x: entry.key,
             barRods: [
               BarChartRodData(
-                toY: showByAmount
-                    ? entry.value
-                    : categoryQuantityData[entry.key]?.toDouble() ?? 0,
-                color: Colors.blue,
+                toY: value,
+                color: const Color.fromRGBO(122, 81, 204, 1),
                 width: 20,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(4),
@@ -905,7 +990,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 toY: showByAmount
                     ? entry.value
                     : paymentQuantityData[entry.key]?.toDouble() ?? 0,
-                color: Colors.green,
+                color: const Color.fromRGBO(122, 81, 204, 1),
                 width: 20,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(4),
@@ -943,19 +1028,449 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ],
     );
   }
+
+  Map<String, Map<String, dynamic>> _aggregateItems(
+      List<ReceiptModel> receipts) {
+    Map<String, Map<String, dynamic>> items = {};
+
+    for (var receipt in receipts) {
+      for (var item in receipt.items) {
+        final itemName = item['name'] as String;
+        final quantity = item['quantity'] as int;
+        final total = item['total'] as double;
+
+        // Use the categoryId from inventoryData and categoriesMap to get the category name
+        final categoryId = inventoryData[itemName]?['categoryId'] ?? '';
+        final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
+
+        if (items.containsKey(itemName)) {
+          items[itemName]!['quantity'] += quantity;
+          items[itemName]!['total'] += total;
+        } else {
+          items[itemName] = {
+            'quantity': quantity,
+            'total': total,
+            'category': categoryName, // Store the category NAME here
+          };
+        }
+      }
+    }
+
+    return items;
+  }
 }
 
-class TransactionHistoryScreen extends StatelessWidget {
+class BestSellersScreen extends StatefulWidget {
+  final Map<String, Map<String, dynamic>> items;
+  final DateTime startDate;
+  final DateTime endDate;
+
+  const BestSellersScreen({
+    super.key,
+    required this.items,
+    required this.startDate,
+    required this.endDate,
+  });
+
+  @override
+  State<BestSellersScreen> createState() => _BestSellersScreenState();
+}
+
+class _BestSellersScreenState extends State<BestSellersScreen> {
+  String? selectedCategory;
+  bool showByAmount = true;
+
+  @override
+  Widget build(BuildContext context) {
+    // Get unique categories from items using categoryName
+    final categories = widget.items.values
+        .map((itemData) => itemData['category']
+            as String) // Use 'category' (which now holds the name)
+        .toSet()
+        .toList();
+    categories.insert(0, 'All');
+
+    // Filter items by category NAME
+    final filteredItems = selectedCategory == 'All' || selectedCategory == null
+        ? widget.items
+        : Map.fromEntries(
+            widget.items.entries.where(
+              (entry) =>
+                  entry.value['category'] ==
+                  selectedCategory, // Filter by 'category' (name)
+            ),
+          );
+
+    // Sort items by amount or quantity
+    final sortedItems = filteredItems.entries.toList()
+      ..sort((a, b) {
+        // Access 'total' and 'quantity' from the nested map
+        final valueA = showByAmount
+            ? a.value['total'] as double
+            : a.value['quantity'] as int;
+        final valueB = showByAmount
+            ? b.value['total'] as double
+            : b.value['quantity'] as int;
+        return valueB.compareTo(valueA);
+      });
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Best Sellers'),
+        actions: [
+          IconButton(
+            icon: Icon(
+                showByAmount ? Icons.attach_money : Icons.format_list_numbered),
+            onPressed: () {
+              setState(() {
+                showByAmount = !showByAmount;
+              });
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Date Range
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey[100],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${DateFormat('dd/MM/yyyy').format(widget.startDate)} - ${DateFormat('dd/MM/yyyy').format(widget.endDate)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  showByAmount ? 'By Amount' : 'By Quantity',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Category Filter
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                // Use the generated categories list which includes 'All' and unique category names
+                children: categories.map((category) {
+                  final isSelected = category == selectedCategory;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label:
+                          Text(category), // Use the category name for the label
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          selectedCategory = selected ? category : null;
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          // Summary Cards
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Items',
+                    sortedItems.length.toString(),
+                    Icons.inventory_2,
+                    const Color.fromRGBO(122, 81, 204, 1),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Sales',
+                    'RM${sortedItems.fold(0.0, (sum, item) => sum + (item.value['total'] as double)).toStringAsFixed(2)}',
+                    Icons.attach_money,
+                    const Color.fromRGBO(122, 81, 204, 1),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildSummaryCard(
+                    'Total Quantity',
+                    sortedItems
+                        .fold(
+                            0,
+                            (sum, item) =>
+                                sum + (item.value['quantity'] as int))
+                        .toString(),
+                    Icons.format_list_numbered,
+                    const Color.fromRGBO(122, 81, 204, 1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Items List
+          Expanded(
+            child: ListView.builder(
+              itemCount: sortedItems.length,
+              itemBuilder: (context, index) {
+                final item = sortedItems[index];
+                final rank = index + 1;
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: rank <= 3
+                          ? [
+                              Colors.amber,
+                              Colors.grey[400],
+                              Colors.amber[700]
+                            ][rank - 1]
+                          : Colors.grey[300],
+                      child: Text(
+                        rank.toString(),
+                        style: TextStyle(
+                          color: rank <= 3 ? Colors.white : Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      item.key, // item.key is the item name/ID
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(item.value['category']
+                        as String), // Display category NAME here
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          showByAmount
+                              ? 'RM${(item.value['total'] as double).toStringAsFixed(2)}'
+                              : '${item.value['quantity']} units', // Display quantity here
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        Text(
+                          showByAmount
+                              ? '${item.value['quantity']} units' // Display quantity here
+                              : 'RM${(item.value['total'] as double).toStringAsFixed(2)}', // Display total here
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+      String title, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 4),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TransactionHistoryScreen extends StatefulWidget {
   const TransactionHistoryScreen({super.key});
+
+  @override
+  State<TransactionHistoryScreen> createState() =>
+      _TransactionHistoryScreenState();
+}
+
+class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
+  DateTime? startDate;
+  DateTime? endDate;
+  final ReceiptService _receiptService = ReceiptService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Set default date range to today
+    final now = DateTime.now();
+    startDate = DateTime(now.year, now.month, now.day);
+    endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+  }
+
+  Future<void> _showReportDialog() async {
+    final reportType = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Generate Report'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.today),
+              title: const Text('Daily Report'),
+              subtitle: const Text('All transactions for a specific day'),
+              onTap: () => Navigator.pop(context, 'Daily Report'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month),
+              title: const Text('Monthly Report'),
+              subtitle: const Text('Daily totals for a specific month'),
+              onTap: () => Navigator.pop(context, 'Monthly Report'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_today),
+              title: const Text('Yearly Report'),
+              subtitle: const Text('Monthly totals for a specific year'),
+              onTap: () => Navigator.pop(context, 'Yearly Report'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (reportType == null) return;
+
+    DateTime? selectedDate;
+    if (reportType == 'Daily Report') {
+      selectedDate = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime.now(),
+      );
+    } else if (reportType == 'Monthly Report') {
+      // Show month picker
+      final now = DateTime.now();
+      final year = now.year;
+      final month = now.month;
+
+      final selectedMonth = await showDialog<DateTime>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Month'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.of(context).size.height *
+                0.4, // 40% of screen height
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(12, (index) {
+                  final monthDate = DateTime(year, index + 1);
+                  return ListTile(
+                    title: Text(DateFormat('MMMM yyyy').format(monthDate)),
+                    selected: index + 1 == month,
+                    onTap: () => Navigator.pop(context, monthDate),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+      selectedDate = selectedMonth;
+    } else if (reportType == 'Yearly Report') {
+      // Show year picker
+      final now = DateTime.now();
+      final currentYear = now.year;
+
+      final selectedYear = await showDialog<int>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Select Year'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(currentYear - 2019, (index) {
+              final year = currentYear - index;
+              return ListTile(
+                title: Text(year.toString()),
+                selected: year == currentYear,
+                onTap: () => Navigator.pop(context, year),
+              );
+            }),
+          ),
+        ),
+      );
+      if (selectedYear != null) {
+        selectedDate = DateTime(selectedYear);
+      }
+    }
+
+    if (selectedDate == null) return;
+
+    try {
+      Map<String, dynamic> report;
+      if (reportType == 'Daily Report') {
+        report = await _receiptService.generateDailyReport(selectedDate);
+      } else if (reportType == 'Monthly Report') {
+        report = await _receiptService.generateMonthlyReport(selectedDate);
+      } else {
+        report = await _receiptService.generateYearlyReport(selectedDate);
+      }
+
+      if (!mounted) return;
+      await _receiptService.shareReport(report, reportType);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error generating report: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   Color _getPaymentMethodColor(String method) {
     switch (method.toLowerCase()) {
       case 'cash':
-        return Colors.green;
+        return const Color.fromRGBO(122, 81, 204, 1);
       case 'card':
-        return Colors.blue;
+        return const Color.fromRGBO(122, 81, 204, 1);
       case 'qr':
-        return Colors.purple;
+        return const Color.fromRGBO(122, 81, 204, 1);
       default:
         return Colors.grey;
     }
@@ -1028,6 +1543,33 @@ class TransactionHistoryScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _selectDateRange(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: startDate != null && endDate != null
+          ? DateTimeRange(start: startDate!, end: endDate!)
+          : null,
+    );
+
+    if (picked != null) {
+      setState(() {
+        startDate = picked.start;
+        endDate = picked.end;
+      });
+    }
+  }
+
+  Stream<List<ReceiptModel>> _getFilteredReceipts() {
+    if (startDate != null && endDate != null) {
+      // Add one day to endDate to include the entire end date
+      final endDatePlusOne = endDate!.add(const Duration(days: 1));
+      return _receiptService.getReceiptsByDateRange(startDate!, endDatePlusOne);
+    }
+    return _receiptService.getReceipts();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1036,137 +1578,172 @@ class TransactionHistoryScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              // TODO: Implement filtering options
-            },
+            onPressed: () => _selectDateRange(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: _showReportDialog,
           ),
         ],
       ),
-      body: StreamBuilder<List<ReceiptModel>>(
-        stream: ReceiptService().getReceipts(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Column(
+        children: [
+          // Date Range Filter Display
+          if (startDate != null && endDate != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.grey[100],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${DateFormat('dd/MM/yyyy').format(startDate!)} - ${DateFormat('dd/MM/yyyy').format(endDate!)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        startDate = null;
+                        endDate = null;
+                      });
+                    },
+                    icon: const Icon(Icons.clear),
+                    label: const Text('Clear'),
+                  ),
+                ],
+              ),
+            ),
+          // Transaction List
+          Expanded(
+            child: StreamBuilder<List<ReceiptModel>>(
+              stream: _getFilteredReceipts(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
 
-          final receipts = snapshot.data ?? [];
-          if (receipts.isEmpty) {
-            return const Center(
-              child: Text('No transactions found'),
-            );
-          }
+                final receipts = snapshot.data ?? [];
+                if (receipts.isEmpty) {
+                  return const Center(
+                    child: Text('No transactions found'),
+                  );
+                }
 
-          return Column(
-            children: [
-              // Transaction Summary
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                return Column(
                   children: [
-                    _buildTransactionSummaryItem(
-                      'Total Sales',
-                      'RM${receipts.fold(0.0, (sum, receipt) => sum + receipt.total).toStringAsFixed(2)}',
-                      Icons.attach_money,
-                      Colors.green,
+                    // Transaction Summary
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildTransactionSummaryItem(
+                            'Total Sales',
+                            'RM${receipts.fold(0.0, (sum, receipt) => sum + receipt.total).toStringAsFixed(2)}',
+                            Icons.attach_money,
+                            const Color.fromRGBO(122, 81, 204, 1),
+                          ),
+                          _buildTransactionSummaryItem(
+                            'Total Orders',
+                            receipts.length.toString(),
+                            Icons.shopping_cart,
+                            const Color.fromRGBO(122, 81, 204, 1),
+                          ),
+                          _buildTransactionSummaryItem(
+                            'Average Order',
+                            'RM${(receipts.fold(0.0, (sum, receipt) => sum + receipt.total) / receipts.length).toStringAsFixed(2)}',
+                            Icons.analytics,
+                            const Color.fromRGBO(122, 81, 204, 1),
+                          ),
+                        ],
+                      ),
                     ),
-                    _buildTransactionSummaryItem(
-                      'Total Orders',
-                      receipts.length.toString(),
-                      Icons.shopping_cart,
-                      Colors.blue,
-                    ),
-                    _buildTransactionSummaryItem(
-                      'Average Order',
-                      'RM${(receipts.fold(0.0, (sum, receipt) => sum + receipt.total) / receipts.length).toStringAsFixed(2)}',
-                      Icons.analytics,
-                      Colors.orange,
+                    const SizedBox(height: 16),
+                    // Transaction List
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: receipts.length,
+                        itemBuilder: (context, index) {
+                          final receipt = receipts[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: _getPaymentMethodColor(
+                                    receipt.paymentMethod),
+                                child: Icon(
+                                  _getPaymentMethodIcon(receipt.paymentMethod),
+                                  color: Colors.white,
+                                ),
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Receipt #${receipt.id}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                  Text(
+                                    'RM${receipt.total.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${DateFormat('dd/MM/yyyy HH:mm').format(receipt.timestamp)} - ${receipt.paymentMethod}',
+                                  ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        '${receipt.items.length} items',
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      if (receipt.isPrinted)
+                                        const Icon(Icons.print,
+                                            size: 16, color: Colors.blue),
+                                      if (receipt.isEmailed)
+                                        const Icon(Icons.email,
+                                            size: 16, color: Colors.orange),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              onTap: () =>
+                                  _showReceiptDetails(context, receipt),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Transaction List
-              Expanded(
-                child: ListView.builder(
-                  itemCount: receipts.length,
-                  itemBuilder: (context, index) {
-                    final receipt = receipts[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              _getPaymentMethodColor(receipt.paymentMethod),
-                          child: Icon(
-                            _getPaymentMethodIcon(receipt.paymentMethod),
-                            color: Colors.white,
-                          ),
-                        ),
-                        title: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Receipt #${receipt.id}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            Text(
-                              'RM${receipt.total.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
-                              ),
-                            ),
-                          ],
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${DateFormat('dd/MM/yyyy HH:mm').format(receipt.timestamp)} - ${receipt.paymentMethod}',
-                            ),
-                            Row(
-                              children: [
-                                Text(
-                                  '${receipt.items.length} items',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (receipt.isPrinted)
-                                  const Icon(Icons.print,
-                                      size: 16, color: Colors.blue),
-                                if (receipt.isEmailed)
-                                  const Icon(Icons.email,
-                                      size: 16, color: Colors.orange),
-                              ],
-                            ),
-                          ],
-                        ),
-                        onTap: () => _showReceiptDetails(context, receipt),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

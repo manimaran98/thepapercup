@@ -4,7 +4,8 @@ class ItemModel {
   final double price;
   final double cost;
   final int quantity;
-  final String category;
+  final String categoryId;
+  String categoryName;
   final String? imageUrl;
 
   ItemModel({
@@ -13,7 +14,8 @@ class ItemModel {
     required this.price,
     required this.cost,
     required this.quantity,
-    required this.category,
+    required this.categoryId,
+    this.categoryName = 'Uncategorized',
     this.imageUrl,
   });
 
@@ -24,7 +26,7 @@ class ItemModel {
       price: (map['price'] as num).toDouble(),
       cost: (map['cost'] as num).toDouble(),
       quantity: map['quantity'] as int,
-      category: map['category'] as String,
+      categoryId: map['categoryId'] as String,
       imageUrl: map['imageUrl'] as String?,
     );
   }
@@ -35,7 +37,8 @@ class ItemModel {
       'price': price,
       'cost': cost,
       'quantity': quantity,
-      'category': category,
+      'categoryId': categoryId,
+      'categoryName': categoryName,
       'imageUrl': imageUrl,
     };
   }

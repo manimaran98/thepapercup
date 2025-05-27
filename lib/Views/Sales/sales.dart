@@ -50,7 +50,7 @@ class _SalesScreen extends State<SalesScreen>
       return itemsForSale;
     }
     return itemsForSale
-        .where((item) => item.category == _selectedCategory)
+        .where((item) => item.categoryName == _selectedCategory)
         .toList();
   }
 
@@ -65,11 +65,9 @@ class _SalesScreen extends State<SalesScreen>
 
   Future<void> _initializeData() async {
     try {
-      await Future.wait([
-        checkShiftStatus(),
-        loadItemsForSale(),
-        _loadCategories(),
-      ]);
+      await _loadCategories();
+      await loadItemsForSale();
+      await checkShiftStatus();
     } catch (e) {
       print('Error initializing data: $e');
     } finally {
@@ -84,13 +82,17 @@ class _SalesScreen extends State<SalesScreen>
 
   Future<void> _loadCategories() async {
     try {
-      CategoryService().getCategories().listen((categories) {
-        if (mounted) {
-          setState(() {
-            _categories = categories;
-          });
-        }
-      });
+      final categoriesSnapshot =
+          await FirebaseFirestore.instance.collection('categories').get();
+      final loadedCategories = categoriesSnapshot.docs.map((doc) {
+        return CategoryModel.fromMap(doc.data(), doc.id);
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categories = loadedCategories;
+        });
+      }
     } catch (e) {
       print('Error loading categories: $e');
       Fluttertoast.showToast(
@@ -165,7 +167,16 @@ class _SalesScreen extends State<SalesScreen>
 
       List<ItemModel> loadedItems = itemsSnapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        return ItemModel.fromMap(data, doc.id);
+        final item = ItemModel.fromMap(data, doc.id);
+
+        final category = _categories.firstWhere(
+          (cat) => cat.id == item.categoryId,
+          orElse: () => CategoryModel(id: '', name: 'Uncategorized'),
+        );
+
+        item.categoryName = category.name;
+
+        return item;
       }).toList();
 
       setState(() {
@@ -256,6 +267,8 @@ class _SalesScreen extends State<SalesScreen>
                                     setState(() {
                                       _selectedCategory =
                                           selected ? category : 'All';
+                                      print(
+                                          'Selected category: $_selectedCategory');
                                     });
                                   },
                                   backgroundColor: Colors.grey[200],
@@ -590,7 +603,8 @@ class _SalesScreen extends State<SalesScreen>
           price: item.price,
           cost: item.cost,
           quantity: currentCartQuantity + 1,
-          category: item.category,
+          categoryId: item.categoryId,
+          categoryName: item.categoryName,
           imageUrl: item.imageUrl,
         );
       } else {
@@ -601,7 +615,8 @@ class _SalesScreen extends State<SalesScreen>
           price: item.price,
           cost: item.cost,
           quantity: 1,
-          category: item.category,
+          categoryId: item.categoryId,
+          categoryName: item.categoryName,
           imageUrl: item.imageUrl,
         );
       }
@@ -621,7 +636,8 @@ class _SalesScreen extends State<SalesScreen>
             price: item.price,
             cost: item.cost,
             quantity: cart[item.id]!.quantity - 1,
-            category: item.category,
+            categoryId: item.categoryId,
+            categoryName: item.categoryName,
             imageUrl: item.imageUrl,
           );
         } else {
@@ -1032,6 +1048,8 @@ class _SalesScreen extends State<SalesScreen>
   Widget _buildGridItem(ItemModel item) {
     bool isOutOfStock = item.quantity <= 0;
     bool isLowStock = item.quantity <= 5 && item.quantity > 0;
+
+    print('Building grid item: ${item.name}, Category: ${item.categoryName}');
 
     return Card(
       elevation: 2,

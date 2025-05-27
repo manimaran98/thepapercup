@@ -129,11 +129,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Name Field
                 TextFormField(
                   controller: nameController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Full Name',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.person, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   validator: (value) {
@@ -150,11 +164,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Mobile Field
                 TextFormField(
                   controller: mobileController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Mobile Number',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.phone, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.phone, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   keyboardType: TextInputType.phone,
@@ -172,11 +200,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Email Field
                 TextFormField(
                   controller: emailController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Email',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.email, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   keyboardType: TextInputType.emailAddress,
@@ -195,11 +237,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Password Field
                 TextFormField(
                   controller: passwordController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Password',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon: const Icon(Icons.lock, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   obscureText: true,
@@ -217,11 +273,26 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Confirm Password Field
                 TextFormField(
                   controller: confirmPasswordController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Confirm Password',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_outline, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon:
+                        const Icon(Icons.lock_outline, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   obscureText: true,
@@ -239,50 +310,111 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                 // Birth Date Field
                 TextFormField(
                   controller: birthDateController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Birth Date',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.calendar_today, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon:
+                        const Icon(Icons.calendar_today, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
                   readOnly: true,
                   onTap: () async {
                     final DateTime? picked = await showDatePicker(
                       context: context,
-                      initialDate: DateTime.now(),
+                      initialDate: selectedDate ?? DateTime.now(),
                       firstDate: DateTime(1900),
                       lastDate: DateTime.now(),
                     );
                     if (picked != null) {
-                      selectedDate = picked;
-                      birthDateController.text =
-                          DateFormat('dd/MM/yyyy').format(picked);
+                      setState(() {
+                        selectedDate = picked;
+                        birthDateController.text =
+                            DateFormat('dd/MM/yyyy').format(picked);
+                      });
                     }
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select your birth date';
-                    }
-                    return null;
                   },
                 ),
                 const SizedBox(height: 16),
                 // Gender Field
                 TextFormField(
                   controller: genderController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Gender',
-                    labelStyle: TextStyle(color: Colors.white),
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person_outline, color: Colors.white),
+                    labelStyle: const TextStyle(color: Colors.white),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Colors.white, width: 2),
+                    ),
+                    prefixIcon:
+                        const Icon(Icons.person_outline, color: Colors.white),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.2),
                   ),
                   style: const TextStyle(color: Colors.white),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your gender';
-                    }
-                    return null;
+                  readOnly: true,
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Select Gender'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              title: const Text('Male'),
+                              onTap: () {
+                                setState(() {
+                                  genderController.text = 'Male';
+                                });
+                                Navigator.pop(context);
+                              },
+                            ),
+                            ListTile(
+                              title: const Text('Female'),
+                              onTap: () {
+                                setState(() {
+                                  genderController.text = 'Female';
+                                });
+                                Navigator.pop(context);
+                              },
+                            ),
+                            ListTile(
+                              title: const Text('Other'),
+                              onTap: () {
+                                setState(() {
+                                  genderController.text = 'Other';
+                                });
+                                Navigator.pop(context);
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(height: 32),
@@ -292,11 +424,23 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   height: 50,
                   child: ElevatedButton(
                     onPressed: isLoading ? null : register,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color.fromRGBO(122, 81, 204, 1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 3,
+                    ),
                     child: isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
+                        ? const CircularProgressIndicator(
+                            color: Color.fromRGBO(122, 81, 204, 1))
                         : const Text(
                             'Register',
-                            style: TextStyle(fontSize: 18),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                   ),
                 ),

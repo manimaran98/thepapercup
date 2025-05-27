@@ -31,8 +31,7 @@ class _InventoryScreen extends State<InventoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadItems();
-    _loadCategories();
+    _initializeData();
   }
 
   @override
@@ -45,6 +44,18 @@ class _InventoryScreen extends State<InventoryScreen> {
     super.dispose();
   }
 
+  Future<void> _initializeData() async {
+    try {
+      await _loadCategories(); // Load categories first and wait for it to complete
+      await _loadItems(); // Then load items using the populated _categories
+    } catch (e) {
+      print('Error initializing data: $e');
+      setState(() {
+        _isLoading = false; // Ensure loading is set to false even on error
+      });
+    }
+  }
+
   Future<void> _loadItems() async {
     try {
       // Listen to real-time updates for itemsForSale
@@ -52,7 +63,26 @@ class _InventoryScreen extends State<InventoryScreen> {
         if (!mounted) return; // Check if the widget is still mounted
         List<ItemModel> loadedItems = snapshot.docs.map((doc) {
           Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-          return ItemModel.fromMap(data, doc.id); // Use the fromMap constructor
+          // Use the fromMap constructor to get categoryId
+          final item = ItemModel.fromMap(data, doc.id);
+
+          // Find the category name using the categoryId from the loaded categories
+          // Ensure _categories is not empty before trying to find a category
+          final category = _categories.isNotEmpty
+              ? _categories.firstWhere(
+                  (cat) => cat.id == item.categoryId,
+                  orElse: () => CategoryModel(
+                      id: '',
+                      name: 'Uncategorized'), // Default if category not found
+                )
+              : CategoryModel(
+                  id: '',
+                  name: 'Uncategorized'); // Default if _categories is empty
+
+          // Assign the found category name to the item
+          item.categoryName = category.name; // Update the categoryName field
+
+          return item;
         }).toList();
 
         setState(() {
@@ -74,16 +104,24 @@ class _InventoryScreen extends State<InventoryScreen> {
 
   Future<void> _loadCategories() async {
     try {
-      CategoryService().getCategories().listen((categories) {
-        if (mounted) {
-          setState(() {
-            _categories = categories;
-          });
-        }
-      });
+      // Fetch categories once and update the state
+      final categoriesSnapshot =
+          await FirebaseFirestore.instance.collection('categories').get();
+      final loadedCategories = categoriesSnapshot.docs.map((doc) {
+        return CategoryModel.fromMap(doc.data(), doc.id);
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _categories = loadedCategories;
+        });
+      }
     } catch (e) {
       print('Error loading categories: $e');
-      // Optionally show a toast or other error feedback
+      Fluttertoast.showToast(
+        msg: 'Error loading categories: $e',
+        // Optionally show a toast or other error feedback
+      );
     }
   }
 
@@ -237,13 +275,22 @@ class _InventoryScreen extends State<InventoryScreen> {
                       double cost = double.parse(_costController.text);
                       int quantity = int.parse(_quantityController.text);
 
+                      // Find the category name based on the selected category ID
+                      final selectedCategoryModel = _categories.firstWhere(
+                        (category) => category.id == _selectedCategory,
+                        orElse: () =>
+                            CategoryModel(id: '', name: 'Uncategorized'),
+                      );
+
                       final newItem = ItemModel(
-                        id: '',
-                        name: _nameController.text,
+                        id: '', // Firestore will generate the ID
+                        name: _nameController.text, // Ensure name is not null
                         price: price,
                         cost: cost,
                         quantity: quantity,
-                        category: _selectedCategory!,
+                        categoryId: _selectedCategory!, // Use categoryId
+                        categoryName: selectedCategoryModel
+                            .name, // Use the found category name
                         imageUrl: _selectedImageUrl,
                       );
 
@@ -275,12 +322,13 @@ class _InventoryScreen extends State<InventoryScreen> {
   }
 
   void _showEditItemDialog(ItemModel item) {
-    _nameController.text = item.name ?? '';
-    _priceController.text = item.price?.toString() ?? '';
-    _costController.text = item.cost?.toString() ?? '';
-    _quantityController.text = item.quantity?.toString() ?? '';
+    _nameController.text = item.name;
+    _priceController.text = item.price.toString();
+    _costController.text = item.cost.toString();
+    _quantityController.text = item.quantity.toString();
     _imageUrlController.text = item.imageUrl ?? '';
-    _selectedCategory = item.category;
+    _selectedCategory = item.categoryId;
+    _selectedImageUrl = item.imageUrl;
 
     showDialog(
       context: context,
@@ -435,7 +483,7 @@ class _InventoryScreen extends State<InventoryScreen> {
                         'price': price,
                         'cost': cost,
                         'quantity': quantity,
-                        'category': _selectedCategory,
+                        'categoryId': _selectedCategory,
                         'imageUrl': _imageUrlController.text.isNotEmpty
                             ? _imageUrlController.text
                             : null,
@@ -603,25 +651,8 @@ class _InventoryScreen extends State<InventoryScreen> {
   }
 
   Widget _buildItemCard(ItemModel item) {
-    // Find the category name using the item's category ID
-    String categoryName = 'Uncategorized'; // Default category name
-
-    if (item.category != null &&
-        item.category!.isNotEmpty &&
-        _categories.isNotEmpty) {
-      try {
-        final foundCategory = _categories.firstWhere(
-          (category) => category.id == item.category,
-          orElse: () => CategoryModel(
-              id: '', name: 'Uncategorized'), // Provide a default category
-        );
-        categoryName = foundCategory.name;
-      } catch (e) {
-        // Catch potential errors during firstWhere if orElse somehow fails (shouldn't happen but for safety)
-        print('Error finding category for item ${item.name}: $e');
-        categoryName = 'Unknown Category'; // Another fallback
-      }
-    }
+    // The categoryName is now populated in _loadItems, so we can directly use it
+    String categoryName = item.categoryName; // Use categoryName
 
     return Card(
       margin: const EdgeInsets.symmetric(
