@@ -15,7 +15,7 @@ class ItemModel {
     required this.cost,
     required this.quantity,
     required this.categoryId,
-    this.categoryName = 'Uncategorized',
+    required this.categoryName,
     this.imageUrl,
   });
 
@@ -27,6 +27,7 @@ class ItemModel {
       cost: (map['cost'] as num).toDouble(),
       quantity: map['quantity'] as int,
       categoryId: map['categoryId'] as String,
+      categoryName: map['categoryName'] as String,
       imageUrl: map['imageUrl'] as String?,
     );
   }

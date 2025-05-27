@@ -112,81 +112,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> loadDashboardData() async {
-    setState(() => isLoading = true);
-    try {
-      // Get date range based on selected period
-      DateTime startDate = _getStartDate();
-      DateTime endDate = _getEndDate();
-
-      print('Loading data for period: $selectedPeriod');
-      print('Selected date: $selectedDate');
-      print('Start date: $startDate');
-      print('End date: $endDate');
-
-      // Fetch receipts for the date range. Add 1 day to endDate to include the entire end day.
-      final receipts = await _receiptService
-          .getReceiptsByDateRange(
-              startDate, endDate.add(const Duration(days: 1)))
-          .first;
-
-      // Load inventory data first to get category IDs
-      await _loadInventoryData();
-
-      // Load categories from the categories collection
-      await _loadCategoriesMap();
-
-      // Aggregate item data from receipts for Best Sellers Screen and detailed views
-      aggregatedItemData = _aggregateItems(receipts);
-
-      // Populate other dashboard data based on fetched receipts
-      salesData.clear();
-      categoryData.clear();
-      paymentData.clear();
-      categoryQuantityData.clear();
-      paymentQuantityData.clear();
-      profitData = {'revenue': 0.0, 'cost': 0.0, 'profit': 0.0, 'margin': 0.0};
-
-      double totalRevenue = 0.0;
-
-      for (var receipt in receipts) {
-        totalRevenue += receipt.total;
-
-        final paymentMethod = receipt.paymentMethod ?? 'Unknown';
-        paymentData[paymentMethod] =
-            (paymentData[paymentMethod] ?? 0.0) + receipt.total;
-        paymentQuantityData[paymentMethod] =
-            (paymentQuantityData[paymentMethod] ?? 0) +
-                receipt.items
-                    .fold(0, (sum, item) => sum + (item['quantity'] as int));
-
-        for (var item in receipt.items) {
-          final itemName = item['name'] as String;
-          // Use the categoryId from inventoryData and categoriesMap to get the category name
-          final categoryId = inventoryData[itemName]?['categoryId'] ?? '';
-          final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
-
-          final itemTotal = item['total'] as double;
-          final itemQuantity = item['quantity'] as int;
-
-          salesData[itemName] = (salesData[itemName] ?? 0.0) + itemTotal;
-
-          categoryData[categoryName] =
-              (categoryData[categoryName] ?? 0.0) + itemTotal;
-          categoryQuantityData[categoryName] =
-              (categoryQuantityData[categoryName] ?? 0) + itemQuantity;
-        }
-      }
-
-      profitData['revenue'] = totalRevenue;
-
-      setState(() => isLoading = false);
-    } catch (e) {
-      print('Error loading dashboard data: $e');
-      setState(() => isLoading = false);
-    }
-  }
-
   Future<void> _loadInventoryData() async {
     try {
       final QuerySnapshot inventorySnapshot =
@@ -196,14 +121,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       for (var doc in inventorySnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         final itemName = data['name'] as String;
-        final categoryId = data['Category'] ?? '';
+        final categoryId = data['categoryId'] ?? '';
+        final cost =
+            (data['cost'] ?? 0.0).toDouble(); // Ensure cost is a double
+        print('Loading item: $itemName, Cost: $cost'); // Debug log
+
         // Use the categoriesMap to get the category name
         final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
 
         inventory[itemName] = {
           'quantity': data['quantity'] ?? 0,
-          'categoryId': categoryId, // Store category ID
-          'categoryName': categoryName, // Store category NAME
+          'categoryId': categoryId,
+          'categoryName': categoryName,
+          'cost': cost, // Store the cost
           'lastUpdated': data['lastUpdated'] ?? DateTime.now(),
         };
       }
@@ -231,6 +161,104 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     } catch (e) {
       print('Error loading categories map: $e');
+    }
+  }
+
+  Future<void> loadDashboardData() async {
+    setState(() => isLoading = true);
+    try {
+      // Get date range based on selected period
+      DateTime startDate = _getStartDate();
+      DateTime endDate = _getEndDate();
+
+      print('Loading data for period: $selectedPeriod');
+      print('Selected date: $selectedDate');
+      print('Start date: $startDate');
+      print('End date: $endDate');
+
+      // Fetch receipts for the date range. Add 1 day to endDate to include the entire end day.
+      final receipts = await _receiptService
+          .getReceiptsByDateRange(
+              startDate, endDate.add(const Duration(days: 1)))
+          .first;
+
+      // Load inventory data first to get category IDs and costs
+      await _loadInventoryData();
+
+      // Load categories from the categories collection
+      await _loadCategoriesMap();
+
+      // Aggregate item data from receipts for Best Sellers Screen and detailed views
+      aggregatedItemData = _aggregateItems(receipts);
+
+      // Populate other dashboard data based on fetched receipts
+      salesData.clear();
+      categoryData.clear();
+      paymentData.clear();
+      categoryQuantityData.clear();
+      paymentQuantityData.clear();
+      profitData = {'revenue': 0.0, 'cost': 0.0, 'profit': 0.0, 'margin': 0.0};
+
+      double totalRevenue = 0.0;
+      double totalCost = 0.0;
+
+      for (var receipt in receipts) {
+        totalRevenue += receipt.total;
+
+        final paymentMethod = receipt.paymentMethod ?? 'Unknown';
+        paymentData[paymentMethod] =
+            (paymentData[paymentMethod] ?? 0.0) + receipt.total;
+        paymentQuantityData[paymentMethod] =
+            (paymentQuantityData[paymentMethod] ?? 0) +
+                receipt.items
+                    .fold(0, (sum, item) => sum + (item['quantity'] as int));
+
+        for (var item in receipt.items) {
+          final itemName = item['name'] as String;
+          final itemQuantity = item['quantity'] as int;
+          final itemTotal = item['total'] as double;
+
+          // Get the item's cost from inventory data
+          final itemCost = (inventoryData[itemName]?['cost'] ?? 0.0).toDouble();
+          final itemTotalCost = itemCost * itemQuantity;
+          totalCost += itemTotalCost;
+
+          print(
+              'Item: $itemName, Quantity: $itemQuantity, Total: $itemTotal, Cost: $itemCost, Total Cost: $itemTotalCost'); // Debug log
+
+          // Use the categoryId from inventoryData and categoriesMap to get the category name
+          final categoryId = inventoryData[itemName]?['categoryId'] ?? '';
+          final categoryName = categoriesMap[categoryId] ?? 'Uncategorized';
+
+          salesData[itemName] = (salesData[itemName] ?? 0.0) + itemTotal;
+
+          categoryData[categoryName] =
+              (categoryData[categoryName] ?? 0.0) + itemTotal;
+          categoryQuantityData[categoryName] =
+              (categoryQuantityData[categoryName] ?? 0) + itemQuantity;
+        }
+      }
+
+      // Calculate profit and margin
+      double profit = totalRevenue - totalCost;
+      double margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0.0;
+
+      print('Total Revenue: $totalRevenue'); // Debug log
+      print('Total Cost: $totalCost'); // Debug log
+      print('Profit: $profit'); // Debug log
+      print('Margin: $margin%'); // Debug log
+
+      profitData = {
+        'revenue': totalRevenue,
+        'cost': totalCost,
+        'profit': profit,
+        'margin': margin,
+      };
+
+      setState(() => isLoading = false);
+    } catch (e) {
+      print('Error loading dashboard data: $e');
+      setState(() => isLoading = false);
     }
   }
 
@@ -805,15 +833,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return const Center(child: Text('No data available'));
     }
 
-    // Sort items by sales amount/quantity and take top 5
-    final sortedItems = salesData.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    // Create separate maps for amount and quantity
+    Map<String, double> amountData = salesData;
+    Map<String, int> quantityData = {};
+
+    // Populate quantity data from aggregatedItemData
+    for (var entry in aggregatedItemData.entries) {
+      quantityData[entry.key] = entry.value['quantity'] as int;
+    }
+
+    // Get the appropriate data based on view type
+    final Map<String, dynamic> chartData =
+        showByAmount ? amountData : quantityData;
+
+    // Sort items and take top 5
+    final sortedItems = chartData.entries.toList()
+      ..sort((a, b) => (b.value as num).compareTo(a.value as num));
     final topItems = sortedItems.take(5).toList();
 
     // Get the maximum value for the Y axis
-    final maxValue = showByAmount
-        ? topItems.map((e) => e.value).reduce((a, b) => a > b ? a : b)
-        : topItems.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+    final maxValue =
+        topItems.map((e) => e.value as num).reduce((a, b) => a > b ? a : b);
 
     return BarChart(
       BarChartData(
@@ -827,7 +867,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               final item = topItems[groupIndex].key;
               final value = showByAmount
                   ? 'RM${topItems[groupIndex].value.toStringAsFixed(2)}'
-                  : '${topItems[groupIndex].value.toInt()} units';
+                  : '${topItems[groupIndex].value} units';
               return BarTooltipItem(
                 '$item\n$value',
                 const TextStyle(color: Colors.white),
@@ -884,15 +924,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         borderData: FlBorderData(show: false),
         barGroups: topItems.asMap().entries.map((entry) {
-          // For quantity view, we need to get the actual quantity from the sales data
-          final value = showByAmount
-              ? entry.value.value
-              : entry.value.value.toInt().toDouble();
           return BarChartGroupData(
             x: entry.key,
             barRods: [
               BarChartRodData(
-                toY: value,
+                toY: (entry.value.value as num).toDouble(),
                 color: const Color.fromRGBO(122, 81, 204, 1),
                 width: 20,
                 borderRadius: const BorderRadius.vertical(

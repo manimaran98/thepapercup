@@ -142,6 +142,7 @@ class _SalesScreen extends State<SalesScreen>
       'sales': 0.00,
       'endDrawerAmount': 0.00,
       'expectedDrawerAmount': 0.00,
+      'lastUpdated': FieldValue.serverTimestamp(),
     });
 
     // Update current reference
@@ -149,6 +150,8 @@ class _SalesScreen extends State<SalesScreen>
       'currentShiftId': shiftId,
       'isOpen': false,
       'drawerAmount': 0.00,
+      'sales': 0.00,
+      'lastUpdated': FieldValue.serverTimestamp(),
     });
 
     if (mounted) {
@@ -846,6 +849,36 @@ class _SalesScreen extends State<SalesScreen>
   Future<void> _completeSale(String method, double total,
       {double? change}) async {
     try {
+      // Get current shift ID
+      DocumentSnapshot currentDoc = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc('current')
+          .get();
+
+      if (!currentDoc.exists) {
+        throw Exception('No active shift found');
+      }
+
+      String currentShiftId =
+          (currentDoc.data() as Map<String, dynamic>)['currentShiftId'];
+
+      print('Current Shift ID: $currentShiftId'); // Debug log
+
+      // Get current shift data
+      DocumentSnapshot shiftDoc = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc(currentShiftId)
+          .get();
+
+      if (!shiftDoc.exists) {
+        throw Exception('Shift document not found');
+      }
+
+      double currentSales =
+          (shiftDoc.data() as Map<String, dynamic>)['sales'] ?? 0.0;
+      print('Current Sales: $currentSales'); // Debug log
+      print('New Sale Amount: $total'); // Debug log
+
       // Create sale document
       final saleRef = FirebaseFirestore.instance.collection('sales').doc();
       final sale = {
@@ -862,6 +895,7 @@ class _SalesScreen extends State<SalesScreen>
         'paymentMethod': method,
         'timestamp': FieldValue.serverTimestamp(),
         'change': change,
+        'shiftId': currentShiftId,
       };
 
       // Update inventory
@@ -869,6 +903,15 @@ class _SalesScreen extends State<SalesScreen>
 
       // Add sale document
       batch.set(saleRef, sale);
+
+      // Update shift's sales total
+      batch.update(
+        FirebaseFirestore.instance.collection('shifts').doc(currentShiftId),
+        {
+          'sales': FieldValue.increment(total),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        },
+      );
 
       // Update inventory quantities
       for (var item in cart.values) {
@@ -883,6 +926,16 @@ class _SalesScreen extends State<SalesScreen>
 
       // Commit the batch
       await batch.commit();
+
+      // Verify the update
+      DocumentSnapshot updatedShiftDoc = await FirebaseFirestore.instance
+          .collection('shifts')
+          .doc(currentShiftId)
+          .get();
+
+      double updatedSales =
+          (updatedShiftDoc.data() as Map<String, dynamic>)['sales'] ?? 0.0;
+      print('Updated Sales: $updatedSales'); // Debug log
 
       // Create receipt
       final receipt = ReceiptModel(
